@@ -278,6 +278,7 @@ class InstalledProductsManager(CacheManager):
         easier to work with) into the format the server expects for the
         consumer.
         """
+        print "DEBBBBBBBBBUG"
         final = []
         for key in self.installed.keys():
             final.append({

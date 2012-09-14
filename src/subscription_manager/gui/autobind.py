@@ -48,6 +48,8 @@ class DryRunResult(object):
         autobind_products = set()
 
         log.debug("Unentitled products: %s" % required_products)
+        print "self.json", self.json
+        print "self.service_level", self.service_level
         for pool_quantity in self.json:
             pool = pool_quantity['pool']
             # This is usually the MKT product and has no content, but it

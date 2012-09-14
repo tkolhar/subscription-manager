@@ -336,20 +336,23 @@ class StubUEP:
             self.called_unregister_uuid = None
             self.called_unbind_uuid = None
             self.called_unbind_serial = None
-            pass
+            self.consumer = None
 
     def supports_resource(self, resource):
         return False
 
-    def registerConsumer(self, name, type, facts, owner, environment, keys,
-                         installed_products):
+    def registerConsumer(self, name=None, type=None, facts=None,
+                         owner=None, environment=None, keys=None,
+                         installed_products=None):
         return self.registered_consumer_info
 
     def unregisterConsumer(self, uuid):
         self.called_unregister_uuid = uuid
 
     def getOwnerList(self, username):
-        return [{'key': 'dummyowner'}]
+        print "getOwnerList"
+        return [{'key': 'dummyowner',
+                 'displayName': 'Dummy Owner'}]
 
     def updatePackageProfile(self, uuid, pkg_dicts):
         pass
@@ -391,6 +394,7 @@ class StubUEP:
 class StubBackend:
     def __init__(self, uep=StubUEP()):
         self.uep = uep
+        self.admin_uep = self.uep
         self.entitlement_dir = None
         self.product_dir = None
         self.content_connection = None
@@ -436,6 +440,9 @@ class StubFacts(object):
 
     def get_last_update(self):
         return None
+
+    def write_cache(self):
+        pass
 
 
 class StubConsumer:

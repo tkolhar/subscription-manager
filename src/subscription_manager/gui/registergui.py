@@ -49,7 +49,8 @@ gtk.glade.textdomain("rhsm")
 
 log = logging.getLogger('rhsm-app.' + __name__)
 CFG = config.initConfig()
-
+fixmelog = log
+import traceback
 # An implied Katello environment which we can't actual register to.
 LIBRARY_ENV_NAME = "library"
 
@@ -90,6 +91,7 @@ class RegisterScreen(widgets.GladeWidget):
         self.facts = facts
         self.callbacks = callbacks
 
+        log.debug("self.facts: %s" % self.facts)
         self.async = AsyncBackend(self.backend)
 
         dic = {"on_register_cancel_button_clicked": self.cancel,
@@ -164,27 +166,46 @@ class RegisterScreen(widgets.GladeWidget):
         self.register()
 
     def register(self):
-        result = self._screens[self._current_screen].apply()
+        fixmelog.info("current screen: %s " % (self._current_screen))
+        print "self._current_screen", self._current_screen
+        print "apply"
 
+        import time
+        # wait for any idle sources (aka, our worker threads)
+        # to be handled before applying the next screen
+        while gtk.events_pending():
+            gtk.main_iteration()
+          #  time.sleep(.01)
+
+        result = self._screens[self._current_screen].apply()
+        print "apply result:", result
         if result == FINISH:
             self.finish_registration()
+            return True
+        # NoScreenGui can/will return None at end of reg
+        elif result is None:
             return True
         elif result == DONT_CHANGE:
             return False
 
+        print "post", self._current_screen
         self._screens[self._current_screen].post()
 
+        print "pre", self._current_screen
         self._run_pre(result)
         return False
 
     def _run_pre(self, screen):
+        fixmelog.info("_run_pre screen: %s" % screen)
         # XXX move this into the button handling somehow?
         if screen == FINISH:
+            print "FINISHED"
             self.finish_registration()
             return
 
         self._set_screen(screen)
         async = self._screens[self._current_screen].pre()
+        print "ASYNC", async
         if async:
             self._set_navigation_sensitive(False)
             self._set_screen(PROGRESS_PAGE)
@@ -197,15 +218,15 @@ class RegisterScreen(widgets.GladeWidget):
         return True
 
     def finish_registration(self, failed=False):
+        fixmelog.debug("finish_registration failed=%s" % failed)
         # failed is used by the firstboot subclasses to decide if they should
         # advance the screen or not.
         # XXX it would be cool here to do some async spinning while the
         # main window gui refreshes itself
 
         self.close_window()
-
+        fixmelog.debug("finish_registration, self.close_window")
         self.emit_consumer_signal()
-
         gobject.source_remove(self.timer)
 
     def emit_consumer_signal(self):
@@ -227,9 +248,18 @@ class RegisterScreen(widgets.GladeWidget):
             screen.clear()
 
     def pre_done(self, next_screen):
+        fixmelog.info("pre_done: %s" % next_screen)
         self._set_navigation_sensitive(True)
+#        if next_screen == FINISH:
+#            fixmelog.debug("pre_done FINISH")
+#            self.finish_registration()
+            #self._run_pre(next_screen)
+            #self._set_screen(self._current_screen)
         if next_screen == DONT_CHANGE:
             self._set_screen(self._current_screen)
+        elif next_screen == FINISH:
+            fixmelog.debug("pre_done FINISH")
+            #self.finish_registration(failed=False)
         else:
             self._screens[self._current_screen].post()
             self._run_pre(next_screen)
@@ -259,15 +289,19 @@ class Screen(widgets.GladeWidget):
         self._backend = backend
 
     def pre(self):
+        print self.__class__, "pre"
         return False
 
     def apply(self):
+        print self.__class__, "apply"
         pass
 
     def post(self):
+        print self.__class__, "post"
         pass
 
     def clear(self):
+        print self.__class__, "clear"
         pass
 
 
@@ -280,15 +314,19 @@ class NoGuiScreen(object):
         self.needs_gui = False
 
     def pre(self):
+        fixmelog.info("NoGuiScreen pre")
         return True
 
     def apply(self):
+        fixmelog.info("NoGuiScreen apply")
         pass
 
     def post(self):
+        fixmelog.info("NoGuiScreen post")
         pass
 
     def clear(self):
+        fixmelog.info("NoGuiScreen clear")
         pass
 
 
@@ -299,6 +337,8 @@ class PerformRegisterScreen(NoGuiScreen):
         self.pre_message = _("Registering your system")
 
     def _on_registration_finished_cb(self, new_account, error=None):
+        fixmelog.info("_on_registration_finished_cb start")
+        fixmelog.debug("skip_auto_bind: %s" % self._parent.skip_auto_bind)
         try:
             if error != None:
                 raise error
@@ -306,13 +346,16 @@ class PerformRegisterScreen(NoGuiScreen):
             managerlib.persist_consumer_cert(new_account)
             self._parent.consumer.reload()
             if self._parent.skip_auto_bind:
+                fixmelog.info("Going to FINISH")
                 self._parent.pre_done(FINISH)
             else:
+                fixmelog.info("Going to SELECT_SLA_PAGE")
                 self._parent.pre_done(SELECT_SLA_PAGE)
 
         except Exception, e:
             handle_gui_exception(e, REGISTER_ERROR, self._parent.window)
             self._parent.finish_registration(failed=True)
+        fixmelog.info("_on_registration_finished_cb done")
 
     def pre(self):
         log.info("Registering to owner: %s environment: %s" \
@@ -334,6 +377,7 @@ class PerformSubscribeScreen(NoGuiScreen):
         self.pre_message = _("Attaching subscriptions")
 
     def _on_subscribing_finished_cb(self, unused, error=None):
+        log.debug("unused, error: %s %s" % (unused, error))
         try:
             if error != None:
                 raise error
@@ -342,6 +386,7 @@ class PerformSubscribeScreen(NoGuiScreen):
         except Exception, e:
             handle_gui_exception(e, _("Error subscribing: %s"),
                                  self._parent.window)
+            self._parent.pre_done(FINISH)
             self._parent.finish_registration(failed=True)
 
     def pre(self):
@@ -460,6 +505,8 @@ class SelectSLAScreen(Screen):
         return prod_str
 
     def _on_get_service_levels_cb(self, result, error=None):
+        fixmelog.debug("_on_get_service_levels_cb result: %s error: %s %s" % \
+                       (result, error, error.__class__))
         if error != None:
             if isinstance(error, ServiceLevelNotSupportedException):
                 OkDialog(_("Unable to auto-subscribe, server does not support service levels."),
@@ -473,17 +520,22 @@ class SelectSLAScreen(Screen):
             else:
                 handle_gui_exception(error, _("Error subscribing"),
                                      self._parent.window)
+            self._parent.pre_done(FINISH)
             self._parent.finish_registration(failed=True)
             return
 
         (current_sla, unentitled_products, sla_data_map) = result
-
+        fixmelog.info("current_sla %s" % current_sla)
+        fixmelog.info("unetitled_products %s" % unentitled_products)
+        fixmelog.info("sla_data_map %s" % sla_data_map)
         self._parent.current_sla = current_sla
         if len(sla_data_map) == 1:
             # If system already had a service level, we can hit this point
             # when we cannot fix any unentitled products:
+            fixmelog.debug("current_sla: %s" % current_sla)
             if current_sla is not None and \
                     not self._can_add_more_subs(current_sla, sla_data_map):
+                fixmelog.debug("sla_data_map is one and notself._can_add_more_sub : %s" % current_sla)
                 handle_gui_exception(None,
                                      _("No available subscriptions at "
                                      "the current service level: %s. "
@@ -491,9 +543,10 @@ class SelectSLAScreen(Screen):
                                      "Subscriptions\" tab to manually "
                                      "subscribe this system.") % current_sla,
                                     self._parent.window)
+                self._parent.pre_done(FINISH)
                 self._parent.finish_registration(failed=True)
                 return
-
+            fixmelog.debug("current_sla is one but can add_more_sub? %s" % current_sla)
             self._dry_run_result = sla_data_map.values()[0]
             self._parent.pre_done(CONFIRM_SUBS_PAGE)
         elif len(sla_data_map) > 1:
@@ -507,6 +560,7 @@ class SelectSLAScreen(Screen):
                                  "products. Please use the \"All Available "
                                  "Subscriptions\" tab to manually subscribe "
                                  "this system."), parent=self._parent.window)
+            self._parent.pre_done(FINISH)
             self._parent.finish_registration(failed=True)
 
     def pre(self):
@@ -543,6 +597,7 @@ class EnvironmentScreen(Screen):
         environments = result_tuple
         if error != None:
             handle_gui_exception(error, REGISTER_ERROR, self._parent.window)
+            self._parent.pre_done(FINISH)
             self._parent.finish_registration(failed=True)
             return
 
@@ -600,6 +655,7 @@ class OrganizationScreen(Screen):
         self._owner_key = None
 
     def _on_get_owner_list_cb(self, owners, error=None):
+        fixmelog.info("on_get_owner_list_cb owners: %s error: %s" % (owners, error))
         if error != None:
             handle_gui_exception(error, REGISTER_ERROR,
                     self._parent.window)
@@ -613,6 +669,7 @@ class OrganizationScreen(Screen):
                     _("<b>User %s is not able to register with any orgs.</b>") \
                             % (self._parent.username),
                     self._parent.window)
+            self._parent.pre_done(CREDENTIALS_PAGE)
             self._parent.finish_registration(failed=True)
             return
 
@@ -626,11 +683,14 @@ class OrganizationScreen(Screen):
     def pre(self):
         self._parent.async.get_owner_list(self._parent.username,
                                           self._on_get_owner_list_cb)
+        print "org screen pre"
         return True
 
     def apply(self):
+        fixmelog.info("Org screen apply")
         model, tree_iter = self.owner_treeview.get_selection().get_selected()
         self._owner_key = model.get_value(tree_iter, 0)
+        print "self._owner_key", self._owner_key
         return ENVIRONMENT_SELECT_PAGE
 
     def post(self):
@@ -802,21 +862,28 @@ class AsyncBackend(object):
     def __init__(self, backend):
         self.backend = backend
         self.queue = Queue.Queue()
+        self.idle_sources = []
 
     def _get_owner_list(self, username, callback):
         """
         method run in the worker thread.
         """
+        fixmelog.info("_get_owner_list worker")
         try:
             retval = self.backend.admin_uep.getOwnerList(username)
             self.queue.put((callback, retval, None))
         except Exception, e:
             self.queue.put((callback, None, e))
+        fixmelog.info("_get_owner_list worker done")
 
     def _get_environment_list(self, owner_key, callback):
         """
         method run in the worker thread.
         """
+        fixmelog.info("_get_environment_list worker")
+        fixmelog.info("owner_key: %s" % owner_key)
+        #fixmelog.debug(self.backend.admin_uep.supports_resource)
+        #fixmelog.debug(self.backend.admin_uep.supports_resource('environments'))
         try:
             retval = None
             # If environments aren't supported, don't bother trying to list:
@@ -827,28 +894,36 @@ class AsyncBackend(object):
                 for env in self.backend.admin_uep.getEnvironmentList(owner_key):
                     # We need to ignore the "locker" environment, you can't
                     # register to it:
+                    fixmelog.debug("env %s" % env)
                     if env['name'].lower() != LIBRARY_ENV_NAME.lower():
                         retval.append(env)
                 if len(retval) == 0:
                     raise Exception(_("Server supports environments, but "
                         "none are available."))
-
+            else:
+                print "no env support", callback, retval, None
+            log.debug("callback, retval %s %s " % (callback, retval))
             self.queue.put((callback, retval, None))
         except Exception, e:
+            fixmelog.debug("exception.__class__ %s" % e.__class__)
             log.error("Error listing environments:")
             log.exception(e)
             self.queue.put((callback, None, e))
+        fixmelog.info("_get_environment_list worker done")
 
     def _register_consumer(self, name, facts, owner, env, callback):
         """
         method run in the worker thread.
         """
+        print "_register_consumer worker"
         try:
             installed_mgr = InstalledProductsManager()
+            print "installed_mgr", installed_mgr, installed_mgr.format_for_server()
             retval = self.backend.admin_uep.registerConsumer(name=name,
                     facts=facts.get_facts(), owner=owner, environment=env,
                     installed_products=installed_mgr.format_for_server())
 
+            print "*** retval", retval
             # Facts and installed products went out with the registration
             # request, manually write caches to disk:
             facts.write_cache()
@@ -890,11 +965,15 @@ class AsyncBackend(object):
             except Exception, cert_update_ex:
                 log.info("Error updating certificates after error:")
                 log.exception(cert_update_ex)
+                fixmelog.debug("CCCC %s %s" % (cert_update_ex, cert_update_ex.__class__))
+            fixmelog.debug("EEEEE: %s %s" % (e, e.__class__))
             self.queue.put((callback, None, e))
             return
         self.queue.put((callback, None, None))
 
     def _find_suitable_service_levels(self, consumer, facts):
+        fixmelog.debug("_find_suitable_service_levels consumer: %s facts: %s " % \
+                       (consumer, facts))
         consumer_json = self.backend.uep.getConsumer(
                 consumer.getConsumerId())
 
@@ -931,10 +1010,14 @@ class AsyncBackend(object):
         suitable_slas = {}
         certmgr = CertManager(uep=self.backend.uep)
         certmgr.update()
+        print "available_slas", available_slas
         for sla in available_slas:
+            print "sla", sla
             dry_run_json = self.backend.uep.dryRunBind(consumer.uuid, sla)
+            print "dry_run_json", dry_run_json
             dry_run = DryRunResult(sla, dry_run_json, sorter)
 
+            print "dry_run", dry_run, current_sla
             # If we have a current SLA for this system, we do not need
             # all products to be covered by the SLA to proceed through
             # this wizard:
@@ -946,10 +1029,13 @@ class AsyncBackend(object):
         """
         method run in the worker thread.
         """
+        fixmelog.debug("_find_service_levels consumer: %s facts: %s callback: %s" % \
+                       (consumer, facts, callback))
         try:
             suitable_slas = self._find_suitable_service_levels(consumer, facts)
             self.queue.put((callback, suitable_slas, None))
         except Exception, e:
+            fixmelog.debug("_find_service_levels exception: %s %s" % (e, e.__class__))
             self.queue.put((callback, None, e))
 
     def _watch_thread(self):
@@ -957,25 +1043,35 @@ class AsyncBackend(object):
         glib idle method to watch for thread completion.
         runs the provided callback method in the main thread.
         """
+        log.debug("_watch_thread")
         try:
             (callback, retval, error) = self.queue.get(block=False)
+            print "queue.get: callback: ", callback
+            print "queue.get: retval: ", retval
+            print "queue.get: error: ", error
             if error:
+#                raise error
                 callback(retval, error=error)
             else:
                 callback(retval)
             return False
         except Queue.Empty:
+            #print "Queue.Empty"
             return True
 
     def get_owner_list(self, username, callback):
+        print "create get_owner_list thread"
         gobject.idle_add(self._watch_thread)
         threading.Thread(target=self._get_owner_list,
-                args=(username, callback)).start()
+                         name="get_owner_list",
+                         args=(username, callback)).start()
 
     def get_environment_list(self, owner_key, callback):
+        print "create get_environment_list thread"
         gobject.idle_add(self._watch_thread)
         threading.Thread(target=self._get_environment_list,
-                args=(owner_key, callback)).start()
+                         name="get_environment_list",
+                         args=(owner_key, callback)).start()
 
     def register_consumer(self, name, facts, owner, env, callback):
         """
@@ -983,14 +1079,17 @@ class AsyncBackend(object):
         """
         gobject.idle_add(self._watch_thread)
         threading.Thread(target=self._register_consumer,
-                args=(name, facts, owner, env, callback)).start()
+                         name="register_consumer",
+                         args=(name, facts, owner, env, callback)).start()
 
     def subscribe(self, uuid, current_sla, dry_run_result, callback):
         gobject.idle_add(self._watch_thread)
         threading.Thread(target=self._subscribe,
-                args=(uuid, current_sla, dry_run_result, callback)).start()
+                         name="subscribe",
+                         args=(uuid, current_sla, dry_run_result, callback)).start()
 
     def find_service_levels(self, consumer, facts, callback):
         gobject.idle_add(self._watch_thread)
         threading.Thread(target=self._find_service_levels,
-                args=(consumer, facts, callback)).start()
+                         name="find_service_levels",
+                         args=(consumer, facts, callback)).start()
