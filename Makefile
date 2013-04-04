@@ -445,6 +445,13 @@ pep8:
 	pep8 --ignore E501,$(INDENT_IGNORE) --exclude ".#*" --repeat src $(STYLEFILES) | tee $$TMPFILE; \
 	! test -s $$TMPFILE
 
+INDENT_IGNORE="E121,E122,E123,E124,E125,E126,E127,E128"
+peppier:
+	@TMPFILE=`mktemp` || exit 1; \
+	python scripts/hacking.py --ignore E501,$(INDENT_IGNORE) --exclude ".#*" --repeat src $(STYLEFILES) | tee $$TMPFILE; \
+	! test -s $$TMPFILE
+
+
 rpmlint:
 	@TMPFILE=`mktemp` || exit 1; \
 	rpmlint -f rpmlint.config subscription-manager.spec | grep -v "^.*packages and .* specfiles checked\;" | tee $$TMPFILE; \
