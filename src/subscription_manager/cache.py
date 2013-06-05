@@ -40,6 +40,14 @@ PACKAGES_RESOURCE = "packages"
 cfg = initConfig()
 
 
+class CacheManagerException(Exception):
+    def __init__(self, msg=None):
+        msg = _("Error updating system data on the server, see /var/log/rhsm/rhsm.log "
+                      "for more details.")
+        super(CacheManagerException, self).__init__(self, msg)
+        self.extra_msg = msg
+
+
 class PackageProfileLib(DataLib):
     """
     Another "Lib" object, used by rhsmcertd to update the profile
@@ -170,13 +178,10 @@ class CacheManager(object):
                 # Return the number of 'updates' we did, assuming updating all
                 # packages at once is one update.
                 return 1
-            except connection.RestlibException, re:
-                raise re
             except Exception, e:
                 log.error("Error updating system data on the server")
                 log.exception(e)
-                raise Exception(_("Error updating system data on the server, see /var/log/rhsm/rhsm.log "
-                        "for more details."))
+                raise CacheManagerException(e.msg)
         else:
             log.info("No changes.")
             return 0  # No updates performed.
@@ -220,6 +225,8 @@ class StatusCache(CacheManager):
             # Indicates we may be talking to a very old candlepin server
             # which does not have the compliance API call. Report everything
             # as unknown in this case.
+            # FIXME: anything useful here we could use for a specific
+            # exception?
             return None
 
         # If we hit a network error, but no cache exists (extremely unlikely)
