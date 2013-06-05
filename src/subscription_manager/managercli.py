@@ -238,6 +238,8 @@ class CliCommand(AbstractCLICommand):
 
         self.plugin_manager = plugins.get_plugin_manager()
 
+        self.cli_filter_list = ["password", "proxy_password"]
+
     def _request_validity_check(self):
         try:
             bus = dbus.SystemBus()
@@ -366,6 +368,20 @@ class CliCommand(AbstractCLICommand):
                                       password=password)
         return cp
 
+    def _cli_needs_filter(self):
+        # did we pass a password on cli
+        for cli_filter in self.cli_filter_list:
+            if cli_filter in sys.argv:
+                return True
+        return False
+
+    def log_cli(self):
+        cli = " ".join(sys.argv)
+        if self._cli_needs_filter():
+            log.debug("CLI: %s" % cli)
+        else:
+            log.info("CLI: %s" % cli)
+
     def main(self, args=None):
 
         config_changed = False
@@ -376,6 +392,7 @@ class CliCommand(AbstractCLICommand):
 
         (self.options, self.args) = self.parser.parse_args(args)
 
+        self.log_cli()
         # we dont need argv[0] in this list...
         self.args = self.args[1:]
         # check for unparsed arguments
