@@ -17,10 +17,15 @@ import unittest
 
 from StringIO import StringIO
 
+from mock import patch
+
 import stubs
 from stubs import StubCertificateDirectory, StubProductCertificate, \
         StubProduct, StubEntitlementCertificate, StubContent, \
         StubProductDirectory
+
+from rhsm import connection
+
 from subscription_manager.repolib import Repo, UpdateAction, TidyWriter
 from subscription_manager import repolib
 
@@ -176,7 +181,7 @@ class UpdateActionTests(unittest.TestCase):
         stub_prod_cert = StubProductCertificate(stub_prod, provided_products=[stub_prod2])
         stub_prod2 = StubProduct("fauxprod2", provided_tags="TAG5,TAG6")
         stub_prod2_cert = StubProductCertificate(stub_prod2)
-        stub_prod_dir = StubProductDirectory([stub_prod_cert, stub_prod2_cert])
+        self.stub_prod_dir = StubProductDirectory([stub_prod_cert, stub_prod2_cert])
 
         stub_content = [
                 StubContent("c1", required_tags="", gpg=None),   # no required tags
@@ -188,12 +193,43 @@ class UpdateActionTests(unittest.TestCase):
                 StubContent("c6", content_type="file", required_tags="", gpg=None),
         ]
         self.stub_ent_cert = StubEntitlementCertificate(stub_prod, content=stub_content)
-        stub_ent_dir = StubCertificateDirectory([self.stub_ent_cert])
+        self.stub_ent_dir = StubCertificateDirectory([self.stub_ent_cert])
 
         repolib.ConsumerIdentity = stubs.StubConsumerIdentity
+        self.stub_uep = stubs.StubUEP()
+        self.update_action = UpdateAction(prod_dir=self.stub_prod_dir,
+                ent_dir=self.stub_ent_dir, uep=self.stub_uep)
+
+    def test_remote_sever_exception_on_release(self):
+        def getRelease(uuid):
+            raise connection.RemoteServerException("boom")
         stub_uep = stubs.StubUEP()
-        self.update_action = UpdateAction(prod_dir=stub_prod_dir,
-                ent_dir=stub_ent_dir, uep=stub_uep)
+        stub_uep.getRelease = getRelease
+        ua = UpdateAction(prod_dir=self.stub_prod_dir,
+                          ent_dir=self.stub_ent_dir,
+                          uep=stub_uep)
+        self.assertEquals(None, ua.release)
+
+    def test_restlib_exception_on_release(self):
+        def getRelease(uuid):
+            raise connection.RestlibException(500, "boom")
+        stub_uep = stubs.StubUEP()
+        stub_uep.getRelease = getRelease
+        self.assertRaises(connection.RestlibException,
+                          UpdateAction,
+                          prod_dir=self.stub_prod_dir,
+                          ent_dir=self.stub_ent_dir,
+                          uep=stub_uep)
+
+    def test_restlib_exception_404_on_release(self):
+        def getRelease(uuid):
+            raise connection.RestlibException(404, "boom")
+        stub_uep = stubs.StubUEP()
+        stub_uep.getRelease = getRelease
+        ua = UpdateAction(prod_dir=self.stub_prod_dir,
+                          ent_dir=self.stub_ent_dir,
+                          uep=stub_uep)
+        self.assertEquals(None, ua.release)
 
     def _find_content(self, content_list, name):
         """

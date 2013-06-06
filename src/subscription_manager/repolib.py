@@ -116,7 +116,7 @@ class UpdateAction:
                     log.debug("Release API not supported by the server. Using default.")
                     self.release = None
                 else:
-                    raise e
+                    raise
 
     def perform(self):
         # Load the RepoFile from disk, this contains all our managed yum repo sections:
