@@ -917,7 +917,7 @@ class ServiceLevelCommand(OrgCommand):
                 e.msg.find('/servicelevels') > 0:
                 system_exit(-1, not_supported)
             else:
-                raise e
+                raise
 
 
 class RegisterCommand(UserPassCommand):
