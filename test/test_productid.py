@@ -254,6 +254,7 @@ class TestProductManager(unittest.TestCase):
         self.assert_nothing_happened()
 
         # plugin should get called with empty list
+        self.prod_mgr.plugin_manager.run.assert_called_with('pre_product_id_install', product_list=[])
         self.prod_mgr.plugin_manager.run.assert_called_with('post_product_id_install', product_list=[])
 
     def test_update_installed_no_packages_no_repos_no_active_no_enabled(self):
