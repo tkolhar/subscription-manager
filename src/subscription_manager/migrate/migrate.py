@@ -571,7 +571,7 @@ class MigrationEngine(object):
                 return None
             else:
                 # server supports it but something went wrong, die.
-                raise e
+                raise
 
         # Create the sla tuple before appending the empty string to the list of
         # valid slas.

@@ -23,6 +23,8 @@ import unittest
 import stubs
 
 import rhsm.config
+import rhsm.connection
+
 from subscription_manager.migrate import migrate
 from subscription_manager import certlib
 
@@ -645,6 +647,29 @@ class TestMigration(unittest.TestCase):
         self.engine.cp.getServiceLevelList.return_value = ["Premium", "Standard"]
         service_level = self.engine.select_service_level("my_org", "Premium")
         self.assertEquals(service_level, "Premium")
+
+    def test_select_service_level_500(self):
+        self.engine.cp.getServiceLevelList = MagicMock()
+        self.engine.cp.getServiceLevelList.side_effect = rhsm.connection.RestlibException(500, "boom")
+        self.assertRaises(rhsm.connection.RestlibException,
+                          self.engine.select_service_level,
+                          "my_org",
+                          "Premium")
+
+    def test_select_service_level_404(self):
+        self.engine.cp.getServiceLevelList = MagicMock()
+        self.engine.cp.getServiceLevelList.side_effect = rhsm.connection.RestlibException(404, "not found")
+        service_level = self.engine.select_service_level("my_org", "Premium")
+        self.assertEquals(None, service_level)
+
+    def test_select_service_level_remote_server_exception(self):
+        self.engine.cp.getServiceLevelList = MagicMock()
+        self.engine.cp.getServiceLevelList.side_effect = \
+                rhsm.connection.RemoteServerException(404)
+        self.assertRaises(SystemExit,
+                          self.engine.select_service_level,
+                          "my_org",
+                          "Premium")
 
     @patch("subscription_manager.migrate.migrate.Menu")
     def test_select_service_level_with_menu(self, mock_menu):
