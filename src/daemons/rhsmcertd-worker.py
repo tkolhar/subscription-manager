@@ -50,9 +50,9 @@ def main(options, log):
 
         print _('%d updates required') % updates
         print _('done')
-    except connection.ExpiredIdentityCertException, e:
+    except connection.ExpiredIdentityCertException:
         log.critical(_("Your identity certificate has expired"))
-        raise e
+        raise
     except connection.GoneException, ge:
         uuid = ConsumerIdentity.read().getConsumerId()
         if ge.deleted_id == uuid:
@@ -60,7 +60,7 @@ def main(options, log):
             managerlib.clean_all_data()
             log.critical(_("Certificates archived to '/etc/pki/consumer.old'. Contact your system administrator if you need more information."))
 
-        raise ge
+        raise
 
 
 if __name__ == '__main__':
