@@ -41,11 +41,11 @@ cfg = initConfig()
 
 
 class CacheManagerException(Exception):
-    def __init__(self, msg=None):
-        msg = _("Error updating system data on the server, see /var/log/rhsm/rhsm.log "
-                      "for more details.")
-        super(CacheManagerException, self).__init__(self, msg)
-        self.extra_msg = msg
+    msg = _("Error updating system data on the server, see /var/log/rhsm/rhsm.log "
+            "for more details.")
+
+    def __str__(self):
+        return self.msg
 
 
 class PackageProfileLib(DataLib):
@@ -181,7 +181,7 @@ class CacheManager(object):
             except Exception, e:
                 log.error("Error updating system data on the server")
                 log.exception(e)
-                raise CacheManagerException(e.msg)
+                raise CacheManagerException()
         else:
             log.info("No changes.")
             return 0  # No updates performed.
@@ -240,7 +240,7 @@ class StatusCache(CacheManager):
             log.warn("Unable to reach server, using cached status.")
             return self._read_cache()
 
-        except connection.NetworkException, ex:
+        except connection.ConnectionException, ex:
             log.exception(ex)
             if not self._cache_exists():
                 log.error("Server unreachable, registered, but no cache exists.")
