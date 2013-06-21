@@ -203,6 +203,7 @@ rm -rf %{buildroot}
 %{_datadir}/rhsm/subscription_manager/certmgr.py*
 %{_datadir}/rhsm/subscription_manager/cert_sorter.py*
 %{_datadir}/rhsm/subscription_manager/cli.py*
+%{_datadir}/rhsm/subscription_manager/cp_provider.py*
 %{_datadir}/rhsm/subscription_manager/factlib.py*
 %{_datadir}/rhsm/subscription_manager/facts.py*
 %{_datadir}/rhsm/subscription_manager/hwprobe.py*
@@ -221,6 +222,7 @@ rm -rf %{buildroot}
 %{_datadir}/rhsm/subscription_manager/managerlib.py*
 %{_datadir}/rhsm/subscription_manager/plugins.py*
 %{_datadir}/rhsm/subscription_manager/productid.py*
+%{_datadir}/rhsm/subscription_manager/reasons.py*
 %{_datadir}/rhsm/subscription_manager/release.py*
 %{_datadir}/rhsm/subscription_manager/repolib.py*
 %{_datadir}/rhsm/subscription_manager/utils.py*
@@ -229,6 +231,7 @@ rm -rf %{buildroot}
 %{_datadir}/rhsm/subscription_manager/cp_provider.py*
 %{_datadir}/rhsm/subscription_manager/file_monitor.py*
 
+%{_datadir}/rhsm/subscription_manager/version.py*
 # subscription-manager plugins
 %dir %{rhsm_plugins_dir}
 %dir %{_sysconfdir}/rhsm/pluginconf.d
@@ -267,6 +270,7 @@ rm -rf %{buildroot}
 %{_datadir}/rhsm/rct/cli.py*
 %{_datadir}/rhsm/rct/*commands.py*
 %{_datadir}/rhsm/rct/printing.py*
+%{_datadir}/rhsm/rct/version.py*
 %attr(755,root,root) %{_bindir}/rct
 
 %doc
