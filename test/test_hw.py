@@ -449,20 +449,24 @@ class HardwareProbeTests(fixture.SubManFixture):
         # 24 cores, 1 threads per core = each cpu has two thread siblings
         # 1 core per socket 1 sockets per book via /sys, but
         # /proc/sysinfo says 4 books of 6 sockets of 4 cores
+        #
+        # even though we have cpu topo from sysinfo, we also have
+        # info from the kernel, which we use in that case
+        #
         # and we prefer /proc/sysinfo
-        # how does 24 sockets have 20 cpu? 4 are offline
+        # how do 24 sockets have 20 cpu? 4 are offline
         self.cpumask_vals = {'thread_siblings_list': 1,
                              'core_siblings_list': 1,
                              'book_siblings_list': 1}
 
         hw.count_cpumask_entries = Mock(side_effect=count_cpumask)
         self.assert_equal_dict({'cpu.cpu(s)': 20,
-                                'cpu.socket(s)_per_book': 6,
-                                'cpu.core(s)_per_socket': 4,
+                                'cpu.socket(s)_per_book': 1,
+                                'cpu.core(s)_per_socket': 1,
                                 'cpu.thread(s)_per_core': 1,
-                                'cpu.book(s)': 4,
+                                'cpu.book(s)': 20,
                                 'cpu.book(s)_per_cpu': 1,
-                                'cpu.cpu_socket(s)': 24},
+                                'cpu.cpu_socket(s)': 20},
                                hw.get_cpu_info())
 
     @patch('subscription_manager.hwprobe.Hardware.count_cpumask_entries')
