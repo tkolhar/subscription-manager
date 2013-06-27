@@ -67,6 +67,7 @@ class ClassicCheck:
 # ints like [1,2,3,4]
 # 31-37 return [31,32,33,34,35,36,37]
 def parse_range(range_str):
+    print "range_str", range_str
     range_list = range_str.split('-')
     start = int(range_list[0])
     end = int(range_list[-1])
@@ -84,6 +85,7 @@ def parse_range(range_str):
 def gather_entries(entries_string):
     entries = []
     entry_parts = entries_string.split(',')
+    print "entry_parts", entry_parts
     for entry_part in entry_parts:
         # return a list of enumerated items
         entry_range = parse_range(entry_part)
@@ -253,8 +255,15 @@ class Hardware:
         # FIXME
         entries = f.read().rstrip('\n\x00')
         f.close()
-        cpumask_entries = gather_entries(entries)
-        return len(cpumask_entries)
+        # these fields can exist, but be empty. For example,
+        # thread_siblings_list from s390x-rhel64-zvm-2cpu-has-topo
+        # test data
+
+        if len(entries):
+            cpumask_entries = gather_entries(entries)
+            return len(cpumask_entries)
+        # that field was empty
+        return None
 
     def _parse_s390_sysinfo(self, cpu_count, sysinfo):
         # to quote lscpu.c:
@@ -362,17 +371,18 @@ class Hardware:
             socket_count = cpu_count / cores_per_socket / threads_per_core
         else:
             # how do we get here?
-            #   no cpu topology info, ala s390x on rhel5,
+            #   no cpu topology info, ala s390x  on rhel5,
             #   no sysinfo topology info, ala s390x with zvm on rhel5
             # Would Unknown be better?
             socket_count = 1
 
         # s390 etc
-        # for s390, socket calculates are per book, and we can have multiple
+        # for s390, socket calculations are per book, and we can have multiple
         # books, so multiply socket count by book count
         # see if we are on a s390 with book info
         # all s390 platforms show book siblings, even the ones that also
-        # show sysinfo (lpar)
+        # show sysinfo (lpar)... Except on rhel5, where there is no
+        # cpu topology info with lpar
         books = False
         book_siblings_per_cpu = self.count_cpumask_entries(cpu_files[0],
                                                         'book_siblings_list')
@@ -410,17 +420,37 @@ class Hardware:
 
         self.lscpuinfo = {}
         # let us specify a test dir of /sys info for testing
-        ls_cpu_path = 'LANG=en_US.UTF-8 /usr/bin/lscpu'
-        ls_cpu_cmd = ls_cpu_path
+        ls_cpu_path = '/usr/bin/lscpu'
+        ls_cpu_cmd = [ls_cpu_path]
         if self.testing:
-            ls_cpu_cmd = "%s -s %s" % (ls_cpu_cmd, self.prefix)
+            ls_cpu_cmd = [ls_cpu_path, '-s', self.prefix]
         try:
-            cpudata = commands.getstatusoutput(ls_cpu_cmd)[-1].split('\n')
+            #cpudata = commands.getstatusoutput(ls_cpu_cmd)[-1].split('\n')
+            lscpu_output = self._get_output(ls_cpu_cmd,
+                                            env={'LANG': 'en_US.UTF-8'})
+            print "lscpu_output", lscpu_output
+            cpudata = lscpu_output.splitlines()[-1].split('\n')
+            print "cpudata", cpudata
             for info in cpudata:
                 key, value = info.split(":")
                 nkey = '.'.join(["lscpu", key.lower().strip().replace(" ", "_")])
                 self.lscpuinfo[nkey] = "%s" % value.strip()
         except Exception, e:
+
+
+
+
+
+
+
+
+
+            # FIXME
+
+
+            raise
+
+
             print _("Error reading system CPU information:"), e
         self.allhw.update(self.lscpuinfo)
         return self.lscpuinfo
@@ -576,7 +606,7 @@ class Hardware:
         virt_dict = {}
 
         try:
-            host_type = self._get_output('virt-what')
+            host_type = self._get_output(['virt-what'])
 
             # If this is blank, then not a guest
             virt_dict['virt.is_guest'] = bool(host_type)
@@ -604,17 +634,19 @@ class Hardware:
         self.allhw.update(virt_dict)
         return virt_dict
 
-    def _get_output(self, cmd):
+    def _get_output(self, cmd_args, env):
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
-        process = Popen([cmd], stdout=PIPE)
+        process = Popen(cmd_args, env=env, stdout=PIPE)
         output = process.communicate()[0].strip()
 
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
         returncode = process.poll()
         if returncode:
-            raise CalledProcessError(returncode, cmd, output=output)
+            raise CalledProcessError(returncode,
+                                     ' '.join(cmd_args),
+                                     output=output)
 
         return output
 
@@ -688,6 +720,28 @@ class Hardware:
             try:
                 hardware_method()
             except Exception, e:
+
+
+
+
+
+
+
+
+
+                # FIXME
+
+
+
+                raise
+
+
+
+
+
+
+
+
                 log.warn("%s" % hardware_method)
                 log.warn("Hardware detection failed: %s" % e)
 
@@ -721,7 +775,7 @@ if __name__ == '__main__':
     hw_dict = hw.get_all()
 
     # just show the facts collected
-    if not hw.testing:
+    if True or not hw.testing:
         for hkey, hvalue in sorted(hw_dict.items()):
             print "'%s' : '%s'" % (hkey, hvalue)
 
