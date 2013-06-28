@@ -348,6 +348,33 @@ class Hardware:
         print buf
         return buf
 
+    def _ppc64_fallback(self, cpu_files):
+
+        # ppc64, particular POWER5/POWER6 machines, show almost
+        # no cpu information on rhel5. There is a "physical_id"
+        # associated with each cpu that seems to map to a
+        # cpu, in a socket
+        log.debug("trying ppc64 specific hardware detection")
+        # try to find cpuN/physical_package_id
+        physical_ids = set()
+        for cpu_file in cpu_files:
+            physical_id = self.read_physical_id(cpu_file)
+            physical_ids.add(physical_id)
+
+        print physical_ids
+
+        if physical_ids:
+            # For rhel6 or newer, we have more cpu topology info
+            # exposed by the kernel which will override this
+            socket_count = len(physical_ids)
+            # add marker here so we know we fail back to this
+            log.debug("Using cpuN/physical_id for cpu info on ppc64")
+            print socket_count
+            self.cpuinfo["cpu.topology_source"] = "ppc64 physicalid"
+            return socket_count
+
+        return None
+
     def get_cpu_info(self):
         self.cpuinfo = {}
         # we also have cpufreq, etc in this dir, so match just the numbs
@@ -366,26 +393,6 @@ class Hardware:
         proc_sysinfo = self.prefix + "/proc/sysinfo"
         has_sysinfo = self.has_sysinfo(proc_sysinfo)
 
-         # and if is_s390x
-        if self.arch is "s390x" and has_sysinfo:
-            # for s390x on lpar, try to see if /proc/sysinfo has any
-            # topo info
-            log.debug("/proc/sysinfo found, attempting to gather cpu topology info")
-            sysinfo_lines = self.read_s390_sysinfo(cpu_count, proc_sysinfo)
-            print "sysinfo_lines", sysinfo_lines
-            if sysinfo_lines:
-                sysinfo = self._parse_s390_sysinfo(cpu_count, sysinfo_lines)
-
-                print "sysinfo", sysinfo
-                # verify the sysinfo has system level virt info
-                if sysinfo:
-                    socket_count = sysinfo['socket_count']
-                    book_count = sysinfo['book_count']
-                    sockets_per_book = sysinfo['sockets_per_book']
-                    cores_per_socket = sysinfo['cores_per_socket']
-                    books = True
-                else:
-                    log.debug("found /proc/sysinfo, but failed to parse it")
 
 
         # assume each socket has the same number of cores, and
@@ -400,40 +407,51 @@ class Hardware:
                                                    'core_siblings_list')
 
 
-        # ppc64, particular POWER5/POWER6 machines, show almost
-        # no cpu information on rhel5. There is a "physical_id"
-        # associated with each cpu that seems to map to a
-        # cpu, in a socket
-        if self.arch == "ppc64":
-            log.debug("trying ppc64 specific hardware detection")
-            # try to find cpuN/physical_package_id
-            physical_ids = set()
-            for cpu_file in cpu_files:
-                physical_id = self.read_physical_id(cpu_file)
-                physical_ids.add(physical_id)
-            print physical_ids
-            if physical_ids:
-                # For rhel6 or newer, we have more cpu topology info
-                # exposed by the kernel which will override this
-                socket_count = len(physical_ids)
-                threads_per_core = 1
-                cores_per_cpu = 1
-                # add marker here so we know we fail back to this
-                log.debug("Using cpuN/physical_id for cpu info on ppc64")
-                print socket_count
-                self.cpuinfo["cpu.ppc64_cpu_physical_ids"] = socket_count
-
         # if we find valid values in cpu/cpuN/topology/*siblings_list
         # sometimes it's not there, particularly on rhel5
         if threads_per_core and cores_per_cpu:
             cores_per_socket = cores_per_cpu / threads_per_core
+            self.cpuinfo["cpu.topology_source"] = "kernel /sys cpu siblings lists"
         else:
             # we have found no valid socket information, I only know
             # of cpu's, but no threads, no cores, no sockets
             #cores_per_socket = None
             log.debug("No cpu socket information found")
             # lets try some arch/platform specific approaches
+            if self.arch == "ppc64":
+                socket_count = self._ppc64_fallback(cpu_files)
 
+                # we have no great topo info here
+                threads_per_core = 1
+                cores_per_cpu = 1
+                if socket_count:
+                    cores_per_socket = cpu_count / socket_count
+                else:
+                    cores_per_socket = None
+
+            # and if is_s390x
+            if self.arch == "s390x" and has_sysinfo:
+                # for s390x on lpar, try to see if /proc/sysinfo has any
+                # topo info
+                log.debug("/proc/sysinfo found, attempting to gather cpu topology info")
+                sysinfo_lines = self.read_s390_sysinfo(cpu_count, proc_sysinfo)
+                print "sysinfo_lines", sysinfo_lines
+                if sysinfo_lines:
+                    sysinfo = self._parse_s390_sysinfo(cpu_count, sysinfo_lines)
+
+                    print "sysinfo", sysinfo
+                    # verify the sysinfo has system level virt info
+                    if sysinfo:
+                        self.cpuinfo["cpu.topology_source"] = "s390x sysinfo"
+                        socket_count = sysinfo['socket_count']
+                        book_count = sysinfo['book_count']
+                        sockets_per_book = sysinfo['sockets_per_book']
+                        cores_per_socket = sysinfo['cores_per_socket']
+                        threads_per_core = 1
+                        books = True
+
+                    else:
+                        log.debug("found /proc/sysinfo, but failed to parse it")
 
         if cores_per_socket and threads_per_core:
             socket_count = cpu_count / cores_per_socket / threads_per_core
@@ -452,6 +470,7 @@ class Hardware:
             cores_per_socket = cpu_count
             log.debug("No cpu socket info found for real or virtual hardware")
             # so we can track if we get this far
+            self.cpuinfo["cpu.topology_source"] = "fallback one socket"
             self.cpuinfo["cpu.topology_confidence"] = 0
 
         # s390 etc
@@ -463,10 +482,11 @@ class Hardware:
         # cpu topology info with lpar
         books = False
         book_siblings_per_cpu = self.count_cpumask_entries(cpu_files[0],
-                                                        'book_siblings_list')
+                                                           'book_siblings_list')
         if book_siblings_per_cpu:
             book_count = cpu_count / book_siblings_per_cpu
             sockets_per_book = book_count / socket_count
+            self.cpuinfo["cpu.topology_source"] = "s390 book_siblings_list"
             books = True
 
         # we should always know this...
