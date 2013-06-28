@@ -67,7 +67,6 @@ class ClassicCheck:
 # ints like [1,2,3,4]
 # 31-37 return [31,32,33,34,35,36,37]
 def parse_range(range_str):
-    print "range_str", range_str
     range_list = range_str.split('-')
     start = int(range_list[0])
     end = int(range_list[-1])
@@ -85,7 +84,6 @@ def parse_range(range_str):
 def gather_entries(entries_string):
     entries = []
     entry_parts = entries_string.split(',')
-    print "entry_parts", entry_parts
     for entry_part in entry_parts:
         # return a list of enumerated items
         entry_range = parse_range(entry_part)
@@ -105,7 +103,8 @@ class DmiInfo(object):
     def get_gmi_info(self):
         import dmidecode
         if self.dump_file:
-            dmidecode.set_dev(self.dump_file)
+            if os.access(self.dump_file, os.R_OK):
+                dmidecode.set_dev(self.dump_file)
 
         dmiinfo = {}
         dmi_data = {
@@ -291,12 +290,13 @@ class Hardware:
                 socket_count = book_count * sockets_per_book
                 cores_count = socket_count * cores_per_socket
 
+                print
                 return {'socket_count': socket_count,
                         'cores_count': cores_count,
                         'book_count': book_count,
                         'sockets_per_book': sockets_per_book,
                         'cores_per_socket': cores_per_socket}
-
+        log.debug("Looking for 'CPU Topology SW' in sysinfo, but it was not found")
         return None
 
     def has_s390_sysinfo(self, proc_sysinfo):
@@ -335,18 +335,22 @@ class Hardware:
         has_sysinfo = self.has_s390_sysinfo(proc_sysinfo)
 
         if has_sysinfo:
+            log.debug("/proc/sysinfo found, attempting to gather cpu topology info")
             sysinfo_lines = self.read_s390_sysinfo(cpu_count, proc_sysinfo)
+            print "sysinfo_lines", sysinfo_lines
             if sysinfo_lines:
                 sysinfo = self._parse_s390_sysinfo(cpu_count, sysinfo_lines)
+
+                print "sysinfo", sysinfo
                 # verify the sysinfo has system level virt info
                 if sysinfo:
                     socket_count = sysinfo['socket_count']
-                    cores_count = sysinfo['cores_count']
                     book_count = sysinfo['book_count']
                     sockets_per_book = sysinfo['sockets_per_book']
                     cores_per_socket = sysinfo['cores_per_socket']
                     books = True
-
+                else:
+                    log.debug("found /proc/sysinfo, but failed to parse it")
         # assume each socket has the same number of cores, and
         # each core has the same number of threads.
         #
@@ -358,6 +362,8 @@ class Hardware:
         cores_per_cpu = self.count_cpumask_entries(cpu_files[0],
                                                    'core_siblings_list')
 
+        print threads_per_core
+        print cores_per_cpu
         # if we find valid values in cpu/topology/*siblings_list
         # sometimes it's not there...
         if threads_per_core and cores_per_cpu:
@@ -366,6 +372,7 @@ class Hardware:
             # we have found no valid socket information, I only know
             # of cpu's, but no threads, no cores, no sockets
             cores_per_socket = None
+            log.debug("No cpu socket information found")
 
         if cores_per_socket and threads_per_core:
             socket_count = cpu_count / cores_per_socket / threads_per_core
@@ -373,8 +380,17 @@ class Hardware:
             # how do we get here?
             #   no cpu topology info, ala s390x  on rhel5,
             #   no sysinfo topology info, ala s390x with zvm on rhel5
-            # Would Unknown be better?
+            #
+            #   So we only know count of cpus, so assume one socket
+            #   is this make belive topo
+            threads_per_core = 1
+            cores_per_cpu = 1
             socket_count = 1
+            # cores_per_socket = cores_per_cpu / threads_per_core, ie 1
+            cores_per_socket = cpu_count
+            log.debug("No cpu socket info found for real or virtual hardware")
+            # so we can track if we get this far
+            self.cpuinfo["cpu.topology_confidence"] = 0
 
         # s390 etc
         # for s390, socket calculations are per book, and we can have multiple
@@ -420,21 +436,22 @@ class Hardware:
 
         self.lscpuinfo = {}
         # let us specify a test dir of /sys info for testing
-        ls_cpu_path = '/usr/bin/lscpu'
-        ls_cpu_cmd = [ls_cpu_path]
+        ls_cpu_path = 'LANG=en_US.UTF-8 /usr/bin/lscpu'
+        ls_cpu_cmd = ls_cpu_path
+
         if self.testing:
-            ls_cpu_cmd = [ls_cpu_path, '-s', self.prefix]
+            ls_cpu_cmd = "%s -s %s" % (ls_cpu_cmd, self.prefix)
         try:
-            #cpudata = commands.getstatusoutput(ls_cpu_cmd)[-1].split('\n')
-            lscpu_output = self._get_output(ls_cpu_cmd,
-                                            env={'LANG': 'en_US.UTF-8'})
-            print "lscpu_output", lscpu_output
-            cpudata = lscpu_output.splitlines()[-1].split('\n')
-            print "cpudata", cpudata
+            cpudata = commands.getstatusoutput(ls_cpu_cmd)[-1].split('\n')
             for info in cpudata:
-                key, value = info.split(":")
-                nkey = '.'.join(["lscpu", key.lower().strip().replace(" ", "_")])
-                self.lscpuinfo[nkey] = "%s" % value.strip()
+                try:
+                    key, value = info.split(":")
+                    nkey = '.'.join(["lscpu", key.lower().strip().replace(" ", "_")])
+                    self.lscpuinfo[nkey] = "%s" % value.strip()
+                except ValueError:
+                    # sometimes lscpu outputs weird things. Or fails.
+                    #
+                    pass
         except Exception, e:
 
 
@@ -606,7 +623,7 @@ class Hardware:
         virt_dict = {}
 
         try:
-            host_type = self._get_output(['virt-what'])
+            host_type = self._get_output('virt-what')
 
             # If this is blank, then not a guest
             virt_dict['virt.is_guest'] = bool(host_type)
@@ -634,10 +651,10 @@ class Hardware:
         self.allhw.update(virt_dict)
         return virt_dict
 
-    def _get_output(self, cmd_args, env):
+    def _get_output(self, cmd):
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
-        process = Popen(cmd_args, env=env, stdout=PIPE)
+        process = Popen([cmd], stdout=PIPE)
         output = process.communicate()[0].strip()
 
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
@@ -645,7 +662,7 @@ class Hardware:
         returncode = process.poll()
         if returncode:
             raise CalledProcessError(returncode,
-                                     ' '.join(cmd_args),
+                                     cmd,
                                      output=output)
 
         return output
@@ -764,6 +781,10 @@ if __name__ == '__main__':
     if _LIBPATH not in sys.path:
         sys.path.append(_LIBPATH)
 
+    import debug_logger
+
+
+
     from subscription_manager import logutil
     logutil.init_logger()
 
@@ -775,7 +796,7 @@ if __name__ == '__main__':
     hw_dict = hw.get_all()
 
     # just show the facts collected
-    if True or not hw.testing:
+    if False or not hw.testing:
         for hkey, hvalue in sorted(hw_dict.items()):
             print "'%s' : '%s'" % (hkey, hvalue)
 
@@ -801,6 +822,10 @@ if __name__ == '__main__':
 
         if value_0 != value_1 and ((value_0 != -1) and (value_1 != -1)):
             failed_list.append((cpu_item[0], cpu_item[1], value_0, value_1))
+
+        confident = hw_dict.get("cpu.topology_confidence", True)
+        if not confident:
+            print "no cpu topology confidence"
 
     must_haves = ['cpu.cpu_socket(s)', 'cpu.cpu(s)', 'cpu.core(s)_per_socket', 'cpu.thread(s)_per_core']
     missing_set = set(must_haves).difference(set(hw_dict))
