@@ -168,11 +168,31 @@ class DmiInfo(object):
 
 class Hardware:
 
-    def __init__(self):
+    def __init__(self, prefix=None, testing=None):
         self.allhw = {}
         # prefix to look for /sys, for testing
-        self.prefix = ''
-        self.testing = False
+        self.prefix = prefix or ''
+        self.testing = testing or False
+
+        # we need this so we can decide which of the
+        # arch specific code bases to follow
+        self.arch = self._get_arch()
+
+    def _get_arch(self):
+
+        if self.testing and self.prefix:
+            arch_file = "%s/arch" % self.prefix
+            print "arch_file", arch_file
+            if os.access(arch_file, os.R_OK):
+                try:
+                    f = open(arch_file, 'r')
+                except IOError:
+                    return platform.machine()
+                buf = f.read().strip()
+                f.close()
+                return buf
+            return platform.machine()
+        return platform.machine()
 
     def get_uname_info(self):
 
@@ -299,7 +319,7 @@ class Hardware:
         log.debug("Looking for 'CPU Topology SW' in sysinfo, but it was not found")
         return None
 
-    def has_s390_sysinfo(self, proc_sysinfo):
+    def has_sysinfo(self, proc_sysinfo):
         if not os.access(proc_sysinfo, os.R_OK):
             return False
 
@@ -315,6 +335,18 @@ class Hardware:
         lines = f.readlines()
         f.close()
         return lines
+
+    def read_physical_id(self, cpu_file):
+        print "reading ", "%s/physical_id" % cpu_file
+        try:
+            f = open("%s/physical_id" % cpu_file, 'r')
+        except IOError:
+            return None
+
+        buf = f.read().strip()
+        f.close()
+        print buf
+        return buf
 
     def get_cpu_info(self):
         self.cpuinfo = {}
@@ -332,9 +364,12 @@ class Hardware:
         # see if we have a /proc/sysinfo ala s390, if so
         # prefer that info
         proc_sysinfo = self.prefix + "/proc/sysinfo"
-        has_sysinfo = self.has_s390_sysinfo(proc_sysinfo)
+        has_sysinfo = self.has_sysinfo(proc_sysinfo)
 
-        if has_sysinfo:
+         # and if is_s390x
+        if self.arch is "s390x" and has_sysinfo:
+            # for s390x on lpar, try to see if /proc/sysinfo has any
+            # topo info
             log.debug("/proc/sysinfo found, attempting to gather cpu topology info")
             sysinfo_lines = self.read_s390_sysinfo(cpu_count, proc_sysinfo)
             print "sysinfo_lines", sysinfo_lines
@@ -351,6 +386,8 @@ class Hardware:
                     books = True
                 else:
                     log.debug("found /proc/sysinfo, but failed to parse it")
+
+
         # assume each socket has the same number of cores, and
         # each core has the same number of threads.
         #
@@ -362,30 +399,55 @@ class Hardware:
         cores_per_cpu = self.count_cpumask_entries(cpu_files[0],
                                                    'core_siblings_list')
 
-        print threads_per_core
-        print cores_per_cpu
-        # if we find valid values in cpu/topology/*siblings_list
-        # sometimes it's not there...
+
+        # ppc64, particular POWER5/POWER6 machines, show almost
+        # no cpu information on rhel5. There is a "physical_id"
+        # associated with each cpu that seems to map to a
+        # cpu, in a socket
+        if self.arch == "ppc64":
+            log.debug("trying ppc64 specific hardware detection")
+            # try to find cpuN/physical_package_id
+            physical_ids = set()
+            for cpu_file in cpu_files:
+                physical_id = self.read_physical_id(cpu_file)
+                physical_ids.add(physical_id)
+            print physical_ids
+            if physical_ids:
+                # For rhel6 or newer, we have more cpu topology info
+                # exposed by the kernel which will override this
+                socket_count = len(physical_ids)
+                threads_per_core = 1
+                cores_per_cpu = 1
+                # add marker here so we know we fail back to this
+                log.debug("Using cpuN/physical_id for cpu info on ppc64")
+                print socket_count
+                self.cpuinfo["cpu.ppc64_cpu_physical_ids"] = socket_count
+
+        # if we find valid values in cpu/cpuN/topology/*siblings_list
+        # sometimes it's not there, particularly on rhel5
         if threads_per_core and cores_per_cpu:
             cores_per_socket = cores_per_cpu / threads_per_core
         else:
             # we have found no valid socket information, I only know
             # of cpu's, but no threads, no cores, no sockets
-            cores_per_socket = None
+            #cores_per_socket = None
             log.debug("No cpu socket information found")
+            # lets try some arch/platform specific approaches
+
 
         if cores_per_socket and threads_per_core:
             socket_count = cpu_count / cores_per_socket / threads_per_core
         else:
             # how do we get here?
-            #   no cpu topology info, ala s390x  on rhel5,
+            #   no cpu topology info, ala s390x on rhel5,
             #   no sysinfo topology info, ala s390x with zvm on rhel5
             #
             #   So we only know count of cpus, so assume one socket
-            #   is this make belive topo
+            #   in this make belive topo
             threads_per_core = 1
             cores_per_cpu = 1
             socket_count = 1
+
             # cores_per_socket = cores_per_cpu / threads_per_core, ie 1
             cores_per_socket = cpu_count
             log.debug("No cpu socket info found for real or virtual hardware")
@@ -674,7 +736,7 @@ class Hardware:
         """
 
         no_dmi_arches = ['ppc', 'ppc64', 's390', 's390x']
-        arch = platform.machine()
+        arch = self.arch
         if arch in no_dmi_arches:
             log.debug("not looking for dmi info due to system arch '%s'" % arch)
             platform_specific_info = {}
@@ -788,7 +850,7 @@ if __name__ == '__main__':
     from subscription_manager import logutil
     logutil.init_logger()
 
-    hw = Hardware()
+    hw = Hardware(prefix=sys.argv[1], testing=True)
 
     if len(sys.argv) > 1:
         hw.prefix = sys.argv[1]
