@@ -91,12 +91,13 @@ def check_status(force_signal):
 
     sorter = require(CERT_SORTER)
 
-    if len(sorter.unentitled_products.keys()) > 0 or len(sorter.expired_products.keys()) > 0:
+    # TODO: Take 'unknown' status into account.
+    if sorter.system_status == 'invalid':
         debug("System has one or more certificates that are not valid")
         debug(sorter.unentitled_products.keys())
         debug(sorter.expired_products.keys())
         return RHSM_EXPIRED
-    elif len(sorter.partially_valid_products) > 0:
+    elif sorter.system_status == 'partial':
         debug("System has one or more partially entitled products")
         return RHSM_PARTIALLY_VALID
     elif in_warning_period(sorter):
