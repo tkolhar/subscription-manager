@@ -337,7 +337,6 @@ class Hardware:
         return lines
 
     def read_physical_id(self, cpu_file):
-        print "reading ", "%s/physical_id" % cpu_file
         try:
             f = open("%s/physical_id" % cpu_file, 'r')
         except IOError:
@@ -345,7 +344,6 @@ class Hardware:
 
         buf = f.read().strip()
         f.close()
-        print buf
         return buf
 
     def _ppc64_fallback(self, cpu_files):
@@ -366,16 +364,12 @@ class Hardware:
             if physical_id != '-1':
                 physical_ids.add(physical_id)
 
-        print physical_ids
-
         if physical_ids:
             # For rhel6 or newer, we have more cpu topology info
             # exposed by the kernel which will override this
             socket_count = len(physical_ids)
             # add marker here so we know we fail back to this
             log.debug("Using cpuN/physical_id for cpu info on ppc64")
-            print socket_count
-            self.cpuinfo["cpu.topology_source"] = "ppc64 physicalid"
             return socket_count
 
         return None
@@ -423,7 +417,7 @@ class Hardware:
         # sometimes it's not there, particularly on rhel5
         if threads_per_core and cores_per_cpu:
             cores_per_socket = cores_per_cpu / threads_per_core
-            self.cpuinfo["cpu.topology_source"] = "kernel /sys cpu siblings lists"
+            self.cpuinfo["cpu.topology_source"] = "kernel /sys cpu sibling lists"
 
             # rhel6 s390x can have /sys cpu topo, but we can't make assumption
             # about it being evenly distributed, so if we also have topo info
@@ -454,22 +448,34 @@ class Hardware:
         else:
             # we have found no valid socket information, I only know
             # of cpu's, but no threads, no cores, no sockets
-            #cores_per_socket = None
             log.debug("No cpu socket information found")
+
+            # we have no great topo info here,
+            # assume each cpu thread = 1 core = 1 socket
+            threads_per_core = 1
+            cores_per_cpu = 1
+            cores_per_socket = 1
+            socket_count = None
+
             # lets try some arch/platform specific approaches
             if self.arch == "ppc64":
                 socket_count = self._ppc64_fallback(cpu_files)
 
-                # we have no great topo info here
-                threads_per_core = 1
-                cores_per_cpu = 1
                 if socket_count:
-                    cores_per_socket = cpu_count / socket_count
-                else:
-                    cores_per_socket = None
+                    log.debug("Using ppc64 cpu physical id for cpu topology info")
+                    self.cpuinfo["cpu.topology_source"] = "ppc64 physical_package_id"
 
-            if self.arch == "s390x" and has_sysinfo:
-                print "TRY TO USE SYSINFO STUFF"
+            else:
+                # all of our methods failed...
+
+                log.debug("No cpu socket info found for real or virtual hardware")
+                # so we can track if we get this far
+                self.cpuinfo["cpu.topology_source"] = "fallback one socket"
+                self.cpuinfo["cpu.topology_confidence"] = 0
+                socket_count = cpu_count
+            # for some odd cases where there are offline ppc64 cpu's,
+            # this can end up not being a whole number...
+            cores_per_socket = cpu_count / socket_count
 
         if cores_per_socket and threads_per_core:
             socket_count = cpu_count / cores_per_socket / threads_per_core
@@ -486,10 +492,6 @@ class Hardware:
 
             # cores_per_socket = cores_per_cpu / threads_per_core, ie 1
             cores_per_socket = cpu_count
-            log.debug("No cpu socket info found for real or virtual hardware")
-            # so we can track if we get this far
-            self.cpuinfo["cpu.topology_source"] = "fallback one socket"
-            self.cpuinfo["cpu.topology_confidence"] = 0
 
         # s390 etc
         # for s390, socket calculations are per book, and we can have multiple
@@ -530,6 +532,9 @@ class Hardware:
             self.cpuinfo["cpu.socket(s)_per_book"] = sockets_per_book
             self.cpuinfo["cpu.book(s)"] = book_count
 
+        import pprint
+        pprint.pprint(self.cpuinfo)
+        log.debug("cpu info: %s" % self.cpuinfo)
         self.allhw.update(self.cpuinfo)
         return self.cpuinfo
 
