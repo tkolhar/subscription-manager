@@ -443,6 +443,9 @@ class Hardware:
             # the number of cpu's, but no threads, no cores, no sockets
             log.debug("No cpu socket information found")
 
+            # how do we get here?
+            #   no cpu topology info, ala s390x on rhel5,
+            #   no sysinfo topology info, ala s390x with zvm on rhel5
             # we have no great topo info here,
             # assume each cpu thread = 1 core = 1 socket
             threads_per_core = 1
@@ -459,8 +462,7 @@ class Hardware:
                     self.cpuinfo["cpu.topology_source"] = "ppc64 physical_package_id"
 
             else:
-                # all of our methods failed...
-
+                # all of our usual methods failed us...
                 log.debug("No cpu socket info found for real or virtual hardware")
                 # so we can track if we get this far
                 self.cpuinfo["cpu.topology_source"] = "fallback one socket"
@@ -476,20 +478,6 @@ class Hardware:
             # mostly just to match lscpu behaviour here
             if self.cpuinfo["cpu.topology_source"] != "s390x sysinfo":
                 socket_count = cpu_count / cores_per_socket / threads_per_core
-
-        else:
-            # how do we get here?
-            #   no cpu topology info, ala s390x on rhel5,
-            #   no sysinfo topology info, ala s390x with zvm on rhel5
-            #
-            #   So we only know count of cpus, so assume one socket
-            #   in this make belive topo
-            threads_per_core = 1
-            cores_per_cpu = 1
-            socket_count = 1
-
-            # cores_per_socket = cores_per_cpu / threads_per_core, ie 1
-            cores_per_socket = cpu_count
 
         # s390 etc
         # for s390, socket calculations are per book, and we can have multiple
