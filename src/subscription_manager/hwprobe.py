@@ -351,7 +351,7 @@ class Hardware:
         # no cpu information on rhel5. There is a "physical_id"
         # associated with each cpu that seems to map to a
         # cpu, in a socket
-        log.debug("trying ppc64 specific hardware detection")
+        log.debug("trying ppc64 specific cpu topology detection")
         # try to find cpuN/physical_id
         physical_ids = set()
         for cpu_file in cpu_files:
@@ -368,7 +368,7 @@ class Hardware:
             # exposed by the kernel which will override this
             socket_count = len(physical_ids)
             # add marker here so we know we fail back to this
-            log.debug("Using cpuN/physical_id for cpu info on ppc64")
+            log.debug("Using /sys/devices/system/cpu/cpu*/physical_id for cpu info on ppc63")
             return socket_count
 
         return None
@@ -432,10 +432,11 @@ class Hardware:
                         sockets_per_book = sysinfo['sockets_per_book']
                         cores_per_socket = sysinfo['cores_per_socket']
                         threads_per_core = 1
-                        books = True
 
-                    else:
-                        log.debug("found /proc/sysinfo, but failed to parse it")
+                        # we can have a mismatch between /sys and /sysinfo. We
+                        # defer to sysinfo in this case even for cpu_count
+                        cpu_count = sysinfo['cores_count'] * threads_per_core
+                        books = True
 
         else:
             # we have found no valid socket information, I only know
@@ -464,6 +465,7 @@ class Hardware:
                 # so we can track if we get this far
                 self.cpuinfo["cpu.topology_source"] = "fallback one socket"
                 socket_count = cpu_count
+
             # for some odd cases where there are offline ppc64 cpu's,
             # this can end up not being a whole number...
             cores_per_socket = cpu_count / socket_count

@@ -442,34 +442,36 @@ class HardwareProbeTests(fixture.SubManFixture):
         mock_read_sysinfo.return_value = ["CPU Topology SW:      0 0 0 4 6 4"]
 
         hw = hwprobe.Hardware()
+        hw.arch = "s390x"
 
         def count_cpumask(cpu, field):
             return self.cpumask_vals[field]
 
         # 20 cpus
-        # 24 cores, 1 threads per core = each cpu has two thread siblings
-        # 1 core per socket 1 sockets per book via /sys, but
+        # 24 cores, 1 threads per core
+        # 1 thread per core, 1 core per socket, 1 socket per book via /sys, but
         # /proc/sysinfo says 4 books of 6 sockets of 4 cores
         #
         # even though we have cpu topo from sysinfo, we also have
         # info from the kernel, which we use in that case
         #
         # and we prefer /proc/sysinfo
-        # how do 24 sockets have 20 cpu? 4 are offline
+        # how do 24 sockets have 20 cpu? 86 of the 96 cpus are
+        # offline
         self.cpumask_vals = {'thread_siblings_list': 1,
                              'core_siblings_list': 1,
                              'book_siblings_list': 1}
 
+        # for this case, we prefer the sysinfo numbers
         hw.count_cpumask_entries = Mock(side_effect=count_cpumask)
-        self.assert_equal_dict({'cpu.cpu(s)': 20,
-                                'cpu.socket(s)_per_book': 1,
-                                'cpu.core(s)_per_socket': 1,
+        self.assert_equal_dict({'cpu.cpu(s)': 96,
+                                'cpu.socket(s)_per_book': 6,
+                                'cpu.core(s)_per_socket': 4,
                                 'cpu.thread(s)_per_core': 1,
-                                'cpu.book(s)': 20,
-                                'cpu.book(s)_per_cpu': 1,
-                                'cpu.cpu_socket(s)': 20,
+                                'cpu.book(s)': 4,
+                                'cpu.cpu_socket(s)': 24,
                                 'cpu.topology_source':
-                                    's390 book_siblings_list'},
+                                    's390x sysinfo'},
                                hw.get_cpu_info())
 
     @patch('subscription_manager.hwprobe.Hardware.count_cpumask_entries')
