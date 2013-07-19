@@ -285,7 +285,7 @@ class Hardware:
         return None
 
     # replace/add with getting CPU Totals for s390x
-    def _parse_s390_sysinfo(self, cpu_count, sysinfo):
+    def _parse_s390x_sysinfo_topology(self, cpu_count, sysinfo):
         # to quote lscpu.c:
         # CPU Topology SW:      0 0 0 4 6 4
         # /* s390 detects its cpu topology via /proc/sysinfo, if present.
@@ -311,7 +311,6 @@ class Hardware:
                 socket_count = book_count * sockets_per_book
                 cores_count = socket_count * cores_per_socket
 
-                print
                 return {'socket_count': socket_count,
                         'cores_count': cores_count,
                         'book_count': book_count,
@@ -360,7 +359,12 @@ class Hardware:
         physical_ids = set()
         for cpu_file in cpu_files:
             physical_id = self.read_physical_id(cpu_file)
-            physical_ids.add(physical_id)
+            # offline cpu's show physical id of -1. Normally
+            # we count all present cpu's even if offline, but
+            # in this case, we can't get any cpu info from the
+            # cpu sense it is offline, so don't count it
+            if physical_id != '-1':
+                physical_ids.add(physical_id)
 
         print physical_ids
 
@@ -429,9 +433,9 @@ class Hardware:
                 # topo info
                 log.debug("/proc/sysinfo found, attempting to gather cpu topology info")
                 sysinfo_lines = self.read_s390_sysinfo(cpu_count, proc_sysinfo)
-                print "sysinfo_lines", sysinfo_lines
+        #        print "sysinfo_lines", sysinfo_lines
                 if sysinfo_lines:
-                    sysinfo = self._parse_s390_sysinfo(cpu_count, sysinfo_lines)
+                    sysinfo = self._parse_s390x_sysinfo_topology(cpu_count, sysinfo_lines)
 
                     print "sysinfo", sysinfo
                     # verify the sysinfo has system level virt info
@@ -463,6 +467,9 @@ class Hardware:
                     cores_per_socket = cpu_count / socket_count
                 else:
                     cores_per_socket = None
+
+            if self.arch == "s390x" and has_sysinfo:
+                print "TRY TO USE SYSINFO STUFF"
 
         if cores_per_socket and threads_per_core:
             socket_count = cpu_count / cores_per_socket / threads_per_core
