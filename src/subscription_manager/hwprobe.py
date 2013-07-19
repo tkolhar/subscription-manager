@@ -552,21 +552,6 @@ class Hardware:
                     #
                     pass
         except Exception, e:
-
-
-
-
-
-
-
-
-
-            # FIXME
-
-
-            raise
-
-
             print _("Error reading system CPU information:"), e
         self.allhw.update(self.lscpuinfo)
         return self.lscpuinfo
@@ -836,28 +821,6 @@ class Hardware:
             try:
                 hardware_method()
             except Exception, e:
-
-
-
-
-
-
-
-
-
-                # FIXME
-
-
-
-                raise
-
-
-
-
-
-
-
-
                 log.warn("%s" % hardware_method)
                 log.warn("Hardware detection failed: %s" % e)
 
@@ -879,7 +842,6 @@ if __name__ == '__main__':
       # add to the path if need be
     if _LIBPATH not in sys.path:
         sys.path.append(_LIBPATH)
-
 
     from subscription_manager import logutil
     logutil.init_logger()
