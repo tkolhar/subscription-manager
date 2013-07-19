@@ -440,7 +440,7 @@ class Hardware:
 
         else:
             # we have found no valid socket information, I only know
-            # of cpu's, but no threads, no cores, no sockets
+            # the number of cpu's, but no threads, no cores, no sockets
             log.debug("No cpu socket information found")
 
             # we have no great topo info here,
