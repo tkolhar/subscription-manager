@@ -435,7 +435,7 @@ class Hardware:
 
                         # we can have a mismatch between /sys and /sysinfo. We
                         # defer to sysinfo in this case even for cpu_count
-                        cpu_count = sysinfo['cores_count'] * threads_per_core
+        #                cpu_count = sysinfo['cores_count'] * threads_per_core
                         books = True
 
         else:
@@ -471,7 +471,12 @@ class Hardware:
             cores_per_socket = cpu_count / socket_count
 
         if cores_per_socket and threads_per_core:
-            socket_count = cpu_count / cores_per_socket / threads_per_core
+            # for s390x with sysinfo topo, we use the sysinfo numbers except
+            # for cpu_count, which takes offline cpus into account. This is
+            # mostly just to match lscpu behaviour here
+            if self.cpuinfo["cpu.topology_source"] != "s390x sysinfo":
+                socket_count = cpu_count / cores_per_socket / threads_per_core
+
         else:
             # how do we get here?
             #   no cpu topology info, ala s390x on rhel5,

@@ -464,7 +464,7 @@ class HardwareProbeTests(fixture.SubManFixture):
 
         # for this case, we prefer the sysinfo numbers
         hw.count_cpumask_entries = Mock(side_effect=count_cpumask)
-        self.assert_equal_dict({'cpu.cpu(s)': 96,
+        self.assert_equal_dict({'cpu.cpu(s)': 20,
                                 'cpu.socket(s)_per_book': 6,
                                 'cpu.core(s)_per_socket': 4,
                                 'cpu.thread(s)_per_core': 1,
