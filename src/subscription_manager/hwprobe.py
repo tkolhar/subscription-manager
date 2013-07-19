@@ -284,6 +284,7 @@ class Hardware:
         # that field was empty
         return None
 
+    # replace/add with getting CPU Totals for s390x
     def _parse_s390_sysinfo(self, cpu_count, sysinfo):
         # to quote lscpu.c:
         # CPU Topology SW:      0 0 0 4 6 4
@@ -393,7 +394,10 @@ class Hardware:
         proc_sysinfo = self.prefix + "/proc/sysinfo"
         has_sysinfo = self.has_sysinfo(proc_sysinfo)
 
+        # s390x can have cpu 'books'
+        books = False
 
+        cores_per_socket = None
 
         # assume each socket has the same number of cores, and
         # each core has the same number of threads.
@@ -406,30 +410,20 @@ class Hardware:
         cores_per_cpu = self.count_cpumask_entries(cpu_files[0],
                                                    'core_siblings_list')
 
+        print "threads_per_core", threads_per_core
+        print "cores_per_cpu", cores_per_cpu
+        print "arch", self.arch
+        print "sysinfo", has_sysinfo
 
         # if we find valid values in cpu/cpuN/topology/*siblings_list
         # sometimes it's not there, particularly on rhel5
         if threads_per_core and cores_per_cpu:
             cores_per_socket = cores_per_cpu / threads_per_core
             self.cpuinfo["cpu.topology_source"] = "kernel /sys cpu siblings lists"
-        else:
-            # we have found no valid socket information, I only know
-            # of cpu's, but no threads, no cores, no sockets
-            #cores_per_socket = None
-            log.debug("No cpu socket information found")
-            # lets try some arch/platform specific approaches
-            if self.arch == "ppc64":
-                socket_count = self._ppc64_fallback(cpu_files)
 
-                # we have no great topo info here
-                threads_per_core = 1
-                cores_per_cpu = 1
-                if socket_count:
-                    cores_per_socket = cpu_count / socket_count
-                else:
-                    cores_per_socket = None
-
-            # and if is_s390x
+            # rhel6 s390x can have /sys cpu topo, but we can't make assumption
+            # about it being evenly distributed, so if we also have topo info
+            # in sysinfo, prefer that
             if self.arch == "s390x" and has_sysinfo:
                 # for s390x on lpar, try to see if /proc/sysinfo has any
                 # topo info
@@ -452,6 +446,23 @@ class Hardware:
 
                     else:
                         log.debug("found /proc/sysinfo, but failed to parse it")
+
+        else:
+            # we have found no valid socket information, I only know
+            # of cpu's, but no threads, no cores, no sockets
+            #cores_per_socket = None
+            log.debug("No cpu socket information found")
+            # lets try some arch/platform specific approaches
+            if self.arch == "ppc64":
+                socket_count = self._ppc64_fallback(cpu_files)
+
+                # we have no great topo info here
+                threads_per_core = 1
+                cores_per_cpu = 1
+                if socket_count:
+                    cores_per_socket = cpu_count / socket_count
+                else:
+                    cores_per_socket = None
 
         if cores_per_socket and threads_per_core:
             socket_count = cpu_count / cores_per_socket / threads_per_core
@@ -480,14 +491,19 @@ class Hardware:
         # all s390 platforms show book siblings, even the ones that also
         # show sysinfo (lpar)... Except on rhel5, where there is no
         # cpu topology info with lpar
-        books = False
-        book_siblings_per_cpu = self.count_cpumask_entries(cpu_files[0],
-                                                           'book_siblings_list')
-        if book_siblings_per_cpu:
-            book_count = cpu_count / book_siblings_per_cpu
-            sockets_per_book = book_count / socket_count
-            self.cpuinfo["cpu.topology_source"] = "s390 book_siblings_list"
-            books = True
+        #
+        # if we got book info from sysinfo, prefer it
+        book_siblings_per_cpu = None
+        if not books:
+            book_siblings_per_cpu = self.count_cpumask_entries(cpu_files[0],
+                                                            'book_siblings_list')
+            print "book_siblings_per_cpu", book_siblings_per_cpu
+            print "socket_count", socket_count
+            if book_siblings_per_cpu:
+                book_count = cpu_count / book_siblings_per_cpu
+                sockets_per_book = book_count / socket_count
+                self.cpuinfo["cpu.topology_source"] = "s390 book_siblings_list"
+                books = True
 
         # we should always know this...
         self.cpuinfo["cpu.cpu(s)"] = cpu_count
