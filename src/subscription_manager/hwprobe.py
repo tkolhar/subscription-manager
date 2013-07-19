@@ -863,9 +863,6 @@ if __name__ == '__main__':
     if _LIBPATH not in sys.path:
         sys.path.append(_LIBPATH)
 
-    import debug_logger
-
-
 
     from subscription_manager import logutil
     logutil.init_logger()
