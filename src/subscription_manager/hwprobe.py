@@ -182,7 +182,6 @@ class Hardware:
 
         if self.testing and self.prefix:
             arch_file = "%s/arch" % self.prefix
-            print "arch_file", arch_file
             if os.access(arch_file, os.R_OK):
                 try:
                     f = open(arch_file, 'r')
@@ -408,11 +407,6 @@ class Hardware:
         cores_per_cpu = self.count_cpumask_entries(cpu_files[0],
                                                    'core_siblings_list')
 
-        print "threads_per_core", threads_per_core
-        print "cores_per_cpu", cores_per_cpu
-        print "arch", self.arch
-        print "sysinfo", has_sysinfo
-
         # if we find valid values in cpu/cpuN/topology/*siblings_list
         # sometimes it's not there, particularly on rhel5
         if threads_per_core and cores_per_cpu:
@@ -427,11 +421,9 @@ class Hardware:
                 # topo info
                 log.debug("/proc/sysinfo found, attempting to gather cpu topology info")
                 sysinfo_lines = self.read_s390x_sysinfo(cpu_count, proc_sysinfo)
-        #        print "sysinfo_lines", sysinfo_lines
                 if sysinfo_lines:
                     sysinfo = self._parse_s390x_sysinfo_topology(cpu_count, sysinfo_lines)
 
-                    print "sysinfo", sysinfo
                     # verify the sysinfo has system level virt info
                     if sysinfo:
                         self.cpuinfo["cpu.topology_source"] = "s390x sysinfo"
@@ -471,7 +463,6 @@ class Hardware:
                 log.debug("No cpu socket info found for real or virtual hardware")
                 # so we can track if we get this far
                 self.cpuinfo["cpu.topology_source"] = "fallback one socket"
-                self.cpuinfo["cpu.topology_confidence"] = 0
                 socket_count = cpu_count
             # for some odd cases where there are offline ppc64 cpu's,
             # this can end up not being a whole number...
@@ -506,8 +497,6 @@ class Hardware:
         if not books:
             book_siblings_per_cpu = self.count_cpumask_entries(cpu_files[0],
                                                             'book_siblings_list')
-            print "book_siblings_per_cpu", book_siblings_per_cpu
-            print "socket_count", socket_count
             if book_siblings_per_cpu:
                 book_count = cpu_count / book_siblings_per_cpu
                 sockets_per_book = book_count / socket_count
@@ -532,8 +521,6 @@ class Hardware:
             self.cpuinfo["cpu.socket(s)_per_book"] = sockets_per_book
             self.cpuinfo["cpu.book(s)"] = book_count
 
-        import pprint
-        pprint.pprint(self.cpuinfo)
         log.debug("cpu info: %s" % self.cpuinfo)
         self.allhw.update(self.cpuinfo)
         return self.cpuinfo
@@ -929,10 +916,6 @@ if __name__ == '__main__':
 
         if value_0 != value_1 and ((value_0 != -1) and (value_1 != -1)):
             failed_list.append((cpu_item[0], cpu_item[1], value_0, value_1))
-
-        confident = hw_dict.get("cpu.topology_confidence", True)
-        if not confident:
-            print "no cpu topology confidence"
 
     must_haves = ['cpu.cpu_socket(s)', 'cpu.cpu(s)', 'cpu.core(s)_per_socket', 'cpu.thread(s)_per_core']
     missing_set = set(must_haves).difference(set(hw_dict))
