@@ -319,13 +319,13 @@ class Hardware:
         log.debug("Looking for 'CPU Topology SW' in sysinfo, but it was not found")
         return None
 
-    def has_sysinfo(self, proc_sysinfo):
+    def has_s390x_sysinfo(self, proc_sysinfo):
         if not os.access(proc_sysinfo, os.R_OK):
             return False
 
         return True
 
-    def read_s390_sysinfo(self, cpu_count, proc_sysinfo):
+    def read_s390x_sysinfo(self, cpu_count, proc_sysinfo):
         lines = []
         try:
             f = open(proc_sysinfo, 'r')
@@ -353,7 +353,7 @@ class Hardware:
         # associated with each cpu that seems to map to a
         # cpu, in a socket
         log.debug("trying ppc64 specific hardware detection")
-        # try to find cpuN/physical_package_id
+        # try to find cpuN/physical_id
         physical_ids = set()
         for cpu_file in cpu_files:
             physical_id = self.read_physical_id(cpu_file)
@@ -390,7 +390,7 @@ class Hardware:
         # see if we have a /proc/sysinfo ala s390, if so
         # prefer that info
         proc_sysinfo = self.prefix + "/proc/sysinfo"
-        has_sysinfo = self.has_sysinfo(proc_sysinfo)
+        has_sysinfo = self.has_s390x_sysinfo(proc_sysinfo)
 
         # s390x can have cpu 'books'
         books = False
@@ -426,7 +426,7 @@ class Hardware:
                 # for s390x on lpar, try to see if /proc/sysinfo has any
                 # topo info
                 log.debug("/proc/sysinfo found, attempting to gather cpu topology info")
-                sysinfo_lines = self.read_s390_sysinfo(cpu_count, proc_sysinfo)
+                sysinfo_lines = self.read_s390x_sysinfo(cpu_count, proc_sysinfo)
         #        print "sysinfo_lines", sysinfo_lines
                 if sysinfo_lines:
                     sysinfo = self._parse_s390x_sysinfo_topology(cpu_count, sysinfo_lines)
