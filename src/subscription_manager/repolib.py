@@ -238,6 +238,10 @@ class UpdateAction:
             repo['sslclientkey'] = self.get_key_path(ent_cert)
             repo['sslclientcert'] = ent_cert.path
             repo['sslcacert'] = ca_cert
+            # NOTE: Ff we set this in the ent cert, we should probably make it a relative
+            #       path.
+            # NOTE: This assumes the ca cert has gotten magically provisioned
+            #       to the local machine.
             if content.ca_cert:
                 repo['sslcacert'] = content.ca_cert
             repo['metadata_expire'] = content.metadata_expire

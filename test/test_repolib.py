@@ -188,6 +188,8 @@ class UpdateActionTests(unittest.TestCase):
                 StubContent("c6", content_type="file", required_tags="", gpg=None),
                 StubContent("no_cdn", required_tags="", url="/some/path"),
                 StubContent("cdn", required_tags="", url="/some/path", cdn="https://cdn.example.com"),
+                StubContent("ca_cert_content", required_tags="", ca_cert="/etc/rhsm/ca/some-ca-cert.pem"),
+                StubContent("no_ca_cert_content", required_tags="")
         ]
         self.stub_ent_cert = StubEntitlementCertificate(stub_prod, content=stub_content)
         stub_ent_dir = StubCertificateDirectory([self.stub_ent_cert])
@@ -209,14 +211,39 @@ class UpdateActionTests(unittest.TestCase):
     def test_no_cdn(self):
         content = self.update_action.get_content(self.stub_ent_cert,
                 "http://example.com", None)
-        no_cdn = self._find_content(content, "no_cdn")
-        self.assertEquals("http://example.com/some/path", no_cdn['baseurl'])
+        no_cdn_content = self._find_content(content, "no_cdn")
+        self.assertEquals("http://example.com/some/path", no_cdn_content['baseurl'])
 
     def test_cdn(self):
         content = self.update_action.get_content(self.stub_ent_cert,
                 "http://example.com", None)
-        cdn = self._find_content(content, "cdn")
-        self.assertEquals("https://cdn.example.com/some/path", cdn['baseurl'])
+        cdn_content = self._find_content(content, "cdn")
+        self.assertEquals("https://cdn.example.com/some/path", cdn_content['baseurl'])
+
+    def test_ca_cert(self):
+        content = self.update_action.get_content(self.stub_ent_cert,
+                "http://example.com", None)
+        ca_cert_content = self._find_content(content, "ca_cert_content")
+        self.assertEquals("/etc/rhsm/ca/some-ca-cert.pem", ca_cert_content['sslcacert'])
+
+    def test_ca_cert_default(self):
+        content = self.update_action.get_content(self.stub_ent_cert,
+                "http://example.com", "/etc/rhsm/ca/the-default-ca-cert.pem")
+        ca_cert_content = self._find_content(content, "ca_cert_content")
+        self.assertEquals("/etc/rhsm/ca/some-ca-cert.pem", ca_cert_content['sslcacert'])
+
+    def test_no_ca_cert(self):
+        content = self.update_action.get_content(self.stub_ent_cert,
+                "http://example.com", None)
+        no_ca_cert_content = self._find_content(content, "no_ca_cert_content")
+        self.assertTrue(no_ca_cert_content['sslcacert'] is None)
+
+    def test_no_ca_cert_default(self):
+        content = self.update_action.get_content(self.stub_ent_cert,
+                "http://example.com", "/etc/rhsm/ca/the-default-ca-cert.pem")
+        no_ca_cert_content = self._find_content(content, "no_ca_cert_content")
+        self.assertEquals("/etc/rhsm/ca/the-default-ca-cert.pem",
+                          no_ca_cert_content['sslcacert'])
 
     def test_no_gpg_key(self):
         content = self.update_action.get_content(self.stub_ent_cert,
@@ -246,7 +273,7 @@ class UpdateActionTests(unittest.TestCase):
 
     def test_tags_found(self):
         content = self.update_action.get_unique_content()
-        self.assertEquals(3, len(content))
+        self.assertEquals(7, len(content))
 
     def test_join(self):
         base = "http://foo/bar"
