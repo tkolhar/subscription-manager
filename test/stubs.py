@@ -143,7 +143,7 @@ class StubContent(Content):
 
     def __init__(self, label, name=None, vendor="",
             url="", gpg="", enabled=1, metadata_expire=None, required_tags="",
-            content_type="yum"):
+            content_type="yum", cdn=None, ca_cert=None):
         name = label
         if name:
             name = name
@@ -152,7 +152,9 @@ class StubContent(Content):
         super(StubContent, self).__init__(content_type=content_type, name=name, label=label,
                                           vendor=vendor, url=url, gpg=gpg, enabled=enabled,
                                           metadata_expire=metadata_expire,
-                                          required_tags=required_tags)
+                                          required_tags=required_tags,
+                                          cdn=cdn,
+                                          ca_cert=ca_cert)
 
 
 class StubProductCertificate(ProductCertificate):

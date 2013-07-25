@@ -186,6 +186,8 @@ class UpdateActionTests(unittest.TestCase):
                     gpg="/gpg.key", url="/$some/$path"),
                 StubContent("c5", content_type="file", required_tags="", gpg=None),
                 StubContent("c6", content_type="file", required_tags="", gpg=None),
+                StubContent("no_cdn", required_tags="", url="/some/path"),
+                StubContent("cdn", required_tags="", url="/some/path", cdn="https://cdn.example.com"),
         ]
         self.stub_ent_cert = StubEntitlementCertificate(stub_prod, content=stub_content)
         stub_ent_dir = StubCertificateDirectory([self.stub_ent_cert])
@@ -203,6 +205,18 @@ class UpdateActionTests(unittest.TestCase):
             if content['name'] == name:
                 return content
         return None
+
+    def test_no_cdn(self):
+        content = self.update_action.get_content(self.stub_ent_cert,
+                "http://example.com", None)
+        no_cdn = self._find_content(content, "no_cdn")
+        self.assertEquals("http://example.com/some/path", no_cdn['baseurl'])
+
+    def test_cdn(self):
+        content = self.update_action.get_content(self.stub_ent_cert,
+                "http://example.com", None)
+        cdn = self._find_content(content, "cdn")
+        self.assertEquals("https://cdn.example.com/some/path", cdn['baseurl'])
 
     def test_no_gpg_key(self):
         content = self.update_action.get_content(self.stub_ent_cert,

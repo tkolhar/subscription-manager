@@ -209,6 +209,13 @@ class UpdateAction:
                 repo['enabled'] = "0"
             repo['baseurl'] = self.join(baseurl, self._use_release_for_releasever(content.url))
 
+            # if we specify a full url, use it for baseurl instead of appending
+            # it to the locally defined
+            # NOTE: would we want a config option to always override cdn with
+            # the local value?
+            if content.cdn:
+                repo['baseurl'] = self.join(content.cdn, self._use_release_for_releasever(content.url))
+
             # Extract the variables from thr url
             repo_parts = repo['baseurl'].split("/")
             repoid_vars = []
@@ -231,6 +238,8 @@ class UpdateAction:
             repo['sslclientkey'] = self.get_key_path(ent_cert)
             repo['sslclientcert'] = ent_cert.path
             repo['sslcacert'] = ca_cert
+            if content.ca_cert:
+                repo['sslcacert'] = content.ca_cert
             repo['metadata_expire'] = content.metadata_expire
 
             self._set_proxy_info(repo)
