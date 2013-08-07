@@ -13,10 +13,12 @@
 # in this software or its documentation.
 #
 
+import collections
 import gettext
 import logging
 import os
 import re
+import pprint
 import signal
 import socket
 from urlparse import urlparse
@@ -36,6 +38,16 @@ log = logging.getLogger('rhsm-app.' + __name__)
 _ = lambda x: gettext.ldgettext("rhsm", x)
 
 gettext.textdomain("rhsm")
+
+
+class DefaultDict(collections.defaultdict):
+    """defaultdict wrapper that pretty prints"""
+
+    def as_dict(self):
+        return dict(self)
+
+    def __repr__(self):
+        return pprint.pformat(self.as_dict())
 
 
 def remove_scheme(uri):
