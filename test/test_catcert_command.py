@@ -102,6 +102,13 @@ class CatCertCommandTests(fixture.SubManFixture):
         cert_output = self.mock_stdout.buffer
         self.assert_string_equals(certdata.PRODUCT_CERT_V1_0_OUTPUT, cert_output)
 
+    def test_product_cert_with_os_name_output(self):
+        command = CatCertCommandStub(certdata.PRODUCT_CERT_WITH_OS_NAME_V1_0)
+        command.main(['will_use_stub'])
+
+        cert_output = self.mock_stdout.buffer
+        self.assert_string_equals(certdata.PRODUCT_CERT_WITH_OS_NAME_V1_0_OUTPUT, cert_output)
+
     def test_identity_cert_output(self):
         command = CatCertCommandStub(certdata.IDENTITY_CERT)
         command.main(['will_use_stub'])
