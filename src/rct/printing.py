@@ -38,6 +38,7 @@ class ProductPrinter(object):
         s.append("\t%s: %s" % (_("Version"), xstr(product.version)))
         s.append("\t%s: %s" % (_("Arch"), ",".join(product.architectures)))
         s.append("\t%s: %s" % (_("Tags"), ",".join(product.provided_tags)))
+        s.append("\t%s: %s" % (_("OS Name"), xstr(product.os_name)))
         return "%s\n" % '\n'.join(s)
 
 
