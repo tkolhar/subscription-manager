@@ -26,7 +26,7 @@ from rhsm.certificate import Key, create_from_pem, GMT
 
 from subscription_manager.certdirectory import Writer
 from subscription_manager.identity import ConsumerIdentity
-from subscription_manager.injection import CERT_SORTER, PLUGIN_MANAGER, require
+from subscription_manager.injection import CERT_SORTER, PLUGIN_MANAGER, IDENTITY, require
 import subscription_manager.injection as inj
 from subscription_manager.lock import Lock
 
@@ -202,13 +202,6 @@ class Action:
         self.entdir = entdir or inj.require(inj.ENT_DIR)
         self.uep = uep
 
-    def build(self, bundle):
-        keypem = bundle['key']
-        crtpem = bundle['cert']
-        key = Key(keypem)
-
-        cert = create_from_pem(crtpem)
-        return (key, cert)
 
 
 class DeleteAction(Action):
@@ -239,13 +232,22 @@ class UpdateAction(Action):
         missing_serials = self._find_missing_serials(local, expected)
         rogue_serials = self._find_rogue_serials(local, expected)
         self.delete(rogue_serials, report)
+
         exceptions = self.install(missing_serials, report)
+
         log.info('certs updated:\n%s', report)
         self.syslog_results(report)
+
         # WARNING: TODO: XXX: this is returning a tuple, the parent class and
         # all other sub-classes return an int, which somewhat defeats
         # the purpose...
         return (report.updates(), exceptions)
+
+    def install(self, missing_serials, report):
+
+        ent_cert_installer = EntitlementCertInstaller(self.uep)
+        ent_cert_installer.install(missing_serials, report)
+        return ent_cert_installer.exceptions
 
     def _find_missing_serials(self, local, expected):
         """ Find serials from the server we do not have locally. """
@@ -326,32 +328,54 @@ class UpdateAction(Action):
                                    rogue_count) % rogue_count
             self.entdir.refresh()
 
+
+# could split this to just something that writes the certs
+class EntitlementCertInstaller(object):
+    """Install entitlement certs"""
+
+    def __init__(self, uep=None):
+        self.uep = uep
+        self.identity = require(IDENTITY)
+        self.exceptions = []
+
     def get_certificates_by_serial_list(self, sn_list):
+        """Fetch a list of entitlement certificates specified by a list of serial numbers"""
         result = []
         if sn_list:
             sn_list = [str(sn) for sn in sn_list]
-            reply = self.uep.getCertificates(self._get_consumer_id(),
+            # NOTE: use injected IDENTITY, need to validate this
+            # handles disconnected errors properly
+            reply = self.uep.getCertificates(self.identity.getConsumerId(),
                                               serials=sn_list)
             for cert in reply:
                 result.append(cert)
         return result
 
     def install(self, serials, report):
-        br = Writer()
-        exceptions = []
+        """Fetch entitlment certs, install them, and update the report"""
         for bundle in self.get_certificates_by_serial_list(serials):
-            try:
-                key, cert = self.build(bundle)
-                br.write(key, cert)
-                report.added.append(cert)
-            except Exception, e:
-                log.exception(e)
-                log.error(
-                    'Bundle not loaded:\n%s\n%s',
-                    bundle,
-                    e)
-                exceptions.append(e)
-        return exceptions
+            self.install_cert_bundle(bundle, report)
+
+    def install_cert_bundle(self, bundle, report):
+        cert_bundle_writer = Writer()
+        try:
+            key, cert = self.build_cert(bundle)
+            cert_bundle_writer.write(key, cert)
+            report.added.append(cert)
+        except Exception, e:
+            log.exception(e)
+            log.error('Bundle not loaded:\n%s\n%s', bundle, e)
+            self.exceptions.append(e)
+
+    # should probably be in python-rhsm/certificate
+    def build_cert(self, bundle):
+        keypem = bundle['key']
+        crtpem = bundle['cert']
+
+        key = Key(keypem)
+        cert = create_from_pem(crtpem)
+
+        return (key, cert)
 
 
 class Disconnected(Exception):
