@@ -685,6 +685,7 @@ class ImportFileExtractor(object):
             return False
         return True
 
+    # TODO: rewrite to use certlib.EntitlementCertBundleInstall?
     def write_to_disk(self):
         """
         Write/copy cert to the entitlement cert dir.
