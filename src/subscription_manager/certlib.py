@@ -49,6 +49,7 @@ class ActionLock(Lock):
     def __init__(self):
         Lock.__init__(self, self.PATH)
 
+
 # TODO: *Lib objects should probably all support a Report object
 #        ala CertLib, even if most of them would be simple or
 #        or noops. Would make logging easier and more useful
@@ -76,11 +77,10 @@ class DataLib(object):
         return
 
 
-class CertLib(DataLib):
+class EntCertLib(DataLib):
 
     def __init__(self, lock=ActionLock(), uep=None):
         DataLib.__init__(self, lock, uep)
-        self.report = EntCertReport()
 
     def delete(self, serial_numbers):
         lock = self.lock
@@ -91,11 +91,11 @@ class CertLib(DataLib):
             lock.release()
 
     def _do_update(self):
-        action = UpdateAction(uep=self.uep, report=self.report)
+        action = EntCertUpdateAction(uep=self.uep)
         return action.perform()
 
     def _do_delete(self, serial_numbers):
-        action = DeleteAction()
+        action = EntCertDeleteAction()
         return action.perform(serial_numbers)
 
 
@@ -128,7 +128,7 @@ class HealingLib(DataLib):
                 # date, and heal for tomorrow if so.
 
                 cs = require(CERT_SORTER)
-                cert_updater = CertLib(lock=self.lock, uep=self.uep)
+                cert_updater = EntCertLib(lock=self.lock, uep=self.uep)
                 if not cs.is_valid():
                     log.warn("Found invalid entitlements for today: %s" %
                             today)
@@ -208,7 +208,7 @@ class Action:
 
 
 # TODO: rename to EntitlementCertDeleteAction
-class DeleteAction(Action):
+class EntCertDeleteAction(Action):
 
     def perform(self, serial_numbers):
         for sn in serial_numbers:
@@ -220,12 +220,12 @@ class DeleteAction(Action):
 
 
 # TODO: rename to EntitlementCertUpdateAction
-class UpdateAction(Action):
+class EntCertUpdateAction(Action):
 
     def __init__(self, uep=None, entdir=None, report=None):
         Action.__init__(self, uep=uep, entdir=entdir)
         self.identity = require(IDENTITY)
-        self.report = report
+        self.report = EntCertUpdateReport()
 
     # NOTE: this is slightly at odds with the manual cert import
     #       path, manual import certs wont get a 'report', etc
@@ -433,6 +433,7 @@ class Disconnected(Exception):
 
 
 class ActionReport(object):
+    """Base class for cert lib and action reports"""
     def updates(self):
         """return an int representing how many "updates" were done"""
         raise NotImplementedError
@@ -444,8 +445,8 @@ class ActionReport(object):
         log.info(self)
 
 
-class EntCertReport(ActionReport):
-
+class EntCertUpdateReport(ActionReport):
+    """Report entitlement cert update action changes"""
     def __init__(self):
         self.valid = []
         self.expected = []
@@ -454,6 +455,7 @@ class EntCertReport(ActionReport):
         self.exceptions = []
 
     def updates(self):
+        """total number of ent certs installed and deleted"""
         return (len(self.added) + len(self.rogue))
 
     def write(self, s, title, certificates):
