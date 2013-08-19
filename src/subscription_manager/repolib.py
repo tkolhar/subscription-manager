@@ -24,7 +24,7 @@ from urllib import basejoin
 from rhsm.config import initConfig
 from rhsm.connection import RemoteServerException, RestlibException
 
-from certlib import ActionLock, DataLib, ConsumerIdentity
+from certlib import ActionLock, ActionReport, DataLib, ConsumerIdentity
 from certdirectory import Path, ProductDirectory, EntitlementDirectory
 
 log = logging.getLogger('rhsm-app.' + __name__)
@@ -40,12 +40,12 @@ class RepoLib(DataLib):
         DataLib.__init__(self, lock, uep)
 
     def _do_update(self):
-        action = UpdateAction(uep=self.uep)
+        action = RepoUpdateAction(uep=self.uep)
         return action.perform()
 
     def get_repos(self):
         current = set()
-        action = UpdateAction(uep=self.uep)
+        action = RepoUpdateAction(uep=self.uep)
         repos = action.get_unique_content()
         # Add the current repo data
         repo_file = RepoFile()
@@ -75,7 +75,7 @@ class RepoLib(DataLib):
 # TODO: This is the third disjoint "Action" class hierarchy, this one inherits nothing
 # but exposes similar methods, all of which are already abstracted behind the
 # Datalib.update() method anyhow. Pretty sure these can go away.
-class UpdateAction:
+class RepoUpdateAction:
 
     def __init__(self, uep=None, ent_dir=None, prod_dir=None):
         if ent_dir:
@@ -95,6 +95,9 @@ class UpdateAction:
 
         self.release = None
 
+        # FIXME: empty report at the moment, should be changed to include
+        # info about updated repos
+        self.report = ActionReport()
         # If we are not registered, skip trying to refresh the
         # data from the server
         try:
