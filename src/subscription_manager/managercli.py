@@ -35,7 +35,7 @@ import rhsm.connection as connection
 
 from subscription_manager.branding import get_branding
 from subscription_manager.cache import InstalledProductsManager, ProfileManager
-from subscription_manager.certlib import CertLib, ConsumerIdentity, Disconnected
+from subscription_manager.certlib import EntCertLib, ConsumerIdentity, Disconnected
 from subscription_manager.certmgr import CertManager
 from subscription_manager.cert_sorter import ComplianceManager, FUTURE_SUBSCRIBED, \
         SUBSCRIBED, NOT_SUBSCRIBED, EXPIRED, PARTIALLY_SUBSCRIBED, UNKNOWN
@@ -430,7 +430,7 @@ class CliCommand(AbstractCLICommand):
             self.no_auth_cp = self.cp_provider.get_no_auth_cp()
             self.log_server_version()
 
-            self.certlib = CertLib(uep=self.cp)
+            self.certlib = EntCertLib(uep=self.cp)
 
         else:
             self.cp = None

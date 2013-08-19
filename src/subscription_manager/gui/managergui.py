@@ -34,7 +34,7 @@ import rhsm.config as config
 import rhsm.connection as connection
 
 from subscription_manager.branding import get_branding
-from subscription_manager.certlib import CertLib
+from subscription_manager.certlib import EntCertLib
 from subscription_manager.facts import Facts
 from subscription_manager.hwprobe import ClassicCheck
 from subscription_manager import managerlib
@@ -90,7 +90,7 @@ class Backend(object):
 
         self.product_dir = inj.require(inj.PROD_DIR)
         self.entitlement_dir = inj.require(inj.ENT_DIR)
-        self.certlib = CertLib(uep=self.cp_provider.get_consumer_auth_cp())
+        self.certlib = EntCertLib(uep=self.cp_provider.get_consumer_auth_cp())
 
         self.cs = require(CERT_SORTER)
 
@@ -105,7 +105,7 @@ class Backend(object):
         self.cp_provider.set_connection_info()
 
         # Holds a reference to the old uep:
-        self.certlib = CertLib(uep=self.cp_provider.get_consumer_auth_cp())
+        self.certlib = EntCertLib(uep=self.cp_provider.get_consumer_auth_cp())
 
     def create_content_connection(self):
         self.content_connection = self._create_content_connection()
