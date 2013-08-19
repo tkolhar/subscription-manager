@@ -80,6 +80,7 @@ class CertLib(DataLib):
 
     def __init__(self, lock=ActionLock(), uep=None):
         DataLib.__init__(self, lock, uep)
+        self.report = UpdateReport()
 
     def delete(self, serial_numbers):
         lock = self.lock
@@ -90,7 +91,7 @@ class CertLib(DataLib):
             lock.release()
 
     def _do_update(self):
-        action = UpdateAction(uep=self.uep)
+        action = UpdateAction(uep=self.uep, report=self.report)
         return action.perform()
 
     def _do_delete(self, serial_numbers):
@@ -221,17 +222,17 @@ class DeleteAction(Action):
 # TODO: rename to EntitlementCertUpdateAction
 class UpdateAction(Action):
 
-    def __init__(self, uep=None, entdir=None):
+    def __init__(self, uep=None, entdir=None, report=None):
         Action.__init__(self, uep=uep, entdir=entdir)
         self.identity = require(IDENTITY)
+        self.report = report
 
     # NOTE: this is slightly at odds with the manual cert import
     #       path, manual import certs wont get a 'report', etc
     def perform(self):
-        report = UpdateReport()
-        local = self._get_local_serials(report)
+        local = self._get_local_serials(self.report)
         try:
-            expected = self._get_expected_serials(report)
+            expected = self._get_expected_serials(self.report)
         except socket.error, ex:
             log.exception(ex)
             log.error('Cannot modify subscriptions while disconnected')
@@ -240,16 +241,16 @@ class UpdateAction(Action):
         missing_serials = self._find_missing_serials(local, expected)
         rogue_serials = self._find_rogue_serials(local, expected)
 
-        self.delete(rogue_serials, report)
-        self.install(missing_serials, report)
+        self.delete(rogue_serials, self.report)
+        self.install(missing_serials, self.report)
 
-        log.info('certs updated:\n%s', report)
-        self.syslog_results(report)
+        log.info('certs updated:\n%s', self.report)
+        self.syslog_results(self.report)
 
         # if we want the full report, we can get it, but
         # this makes CertLib.update() have same sig as reset
         # of *Lib.update
-        return report.updates()
+        return self.report.updates()
 
     def install(self, missing_serials, report):
 
@@ -400,14 +401,17 @@ class EntitlementCertBundleInstaller(object):
 
             report.added.append(cert)
         except Exception, e:
-            self.install_exception(e)
+            self.install_exception(bundle, e)
 
         self.post_install(bundle)
 
-    def install_exception(self, exception):
-        log.exception(e)
-        log.error('Bundle not loaded:\n%s\n%s', bundle, e)
-        self.exceptions.append(e)
+    def install_exception(self, bundle, exception):
+        log.exception(exception)
+        log.error('Bundle not loaded:\n%s\n%s', bundle, exception)
+
+        # FIXME: pick one
+        self.exceptions.append(exception)
+        self.report.exceptions.append(exception)
 
     def post_install(self, bundle):
 
