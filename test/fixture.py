@@ -7,6 +7,8 @@ from mock import Mock, NonCallableMock, patch
 import stubs
 import subscription_manager.injection as inj
 
+# use instead of the normal pid file based ActionLock
+from threading import RLock
 
 class SubManFixture(unittest.TestCase):
     """
@@ -43,6 +45,9 @@ class SubManFixture(unittest.TestCase):
         plugin_manager_mock = Mock()
         inj.provide(inj.PLUGIN_MANAGER, plugin_manager_mock)
         inj.provide(inj.DBUS_IFACE, Mock())
+
+        # don't use file based locks for tests
+        inj.provide(inj.ACTION_LOCK, RLock)
 
         self.dbus_patcher = patch('subscription_manager.managercli.CliCommand._request_validity_check')
         self.dbus_patcher.start()

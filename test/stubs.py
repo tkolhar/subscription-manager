@@ -90,14 +90,9 @@ config.CFG.read("test/rhsm.conf")
 from datetime import datetime, timedelta
 
 from subscription_manager.certdirectory import EntitlementDirectory, ProductDirectory
-from subscription_manager.certlib import ActionLock
 from rhsm.certificate import parse_tags, Content
 from rhsm.certificate2 import EntitlementCertificate, ProductCertificate, \
         Product, Content, Order
-
-
-class MockActionLock(ActionLock):
-    PATH = tempfile.mkstemp()[1]
 
 
 class MockStdout:

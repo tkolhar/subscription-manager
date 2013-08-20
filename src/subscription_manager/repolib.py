@@ -24,7 +24,7 @@ from urllib import basejoin
 from rhsm.config import initConfig
 from rhsm.connection import RemoteServerException, RestlibException
 
-from certlib import ActionLock, ActionReport, DataLib, ConsumerIdentity
+from certlib import ActionReport, DataLib, ConsumerIdentity
 from certdirectory import Path, ProductDirectory, EntitlementDirectory
 
 log = logging.getLogger('rhsm-app.' + __name__)
@@ -35,9 +35,6 @@ ALLOWED_CONTENT_TYPES = ["yum"]
 
 
 class RepoLib(DataLib):
-
-    def __init__(self, lock=ActionLock(), uep=None):
-        DataLib.__init__(self, lock, uep)
 
     def _do_update(self):
         action = RepoUpdateAction(uep=self.uep)
