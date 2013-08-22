@@ -187,7 +187,6 @@ class RepoUpdateAction:
             return lst
 
         tags_we_have = self.prod_dir.get_provided_tags()
-        tags_we_have = ["rhel-6", "rhel-6-server"]
 
         for content in ent_cert.content:
             if not content.content_type in ALLOWED_CONTENT_TYPES:
