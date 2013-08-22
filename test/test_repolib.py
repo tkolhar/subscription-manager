@@ -21,7 +21,7 @@ import stubs
 from stubs import StubCertificateDirectory, StubProductCertificate, \
         StubProduct, StubEntitlementCertificate, StubContent, \
         StubProductDirectory
-from subscription_manager.repolib import Repo, UpdateAction, TidyWriter
+from subscription_manager.repolib import Repo, RepoUpdateAction, TidyWriter
 from subscription_manager import repolib
 
 
@@ -168,7 +168,7 @@ class RepoTests(unittest.TestCase):
         self.assertFalse(("proxy", "") in r.items())
 
 
-class UpdateActionTests(unittest.TestCase):
+class RepoUpdateActionTests(unittest.TestCase):
 
     def setUp(self):
         stub_prod = StubProduct("fauxprod", provided_tags="TAG1,TAG2")
@@ -192,7 +192,7 @@ class UpdateActionTests(unittest.TestCase):
 
         repolib.ConsumerIdentity = stubs.StubConsumerIdentity
         stub_uep = stubs.StubUEP()
-        self.update_action = UpdateAction(prod_dir=stub_prod_dir,
+        self.update_action = RepoUpdateAction(prod_dir=stub_prod_dir,
                 ent_dir=stub_ent_dir, uep=stub_uep)
 
     def _find_content(self, content_list, name):
