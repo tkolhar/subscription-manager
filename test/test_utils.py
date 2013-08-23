@@ -309,7 +309,7 @@ class TestGetServerVersions(fixture.SubManFixture):
 
     @patch('subscription_manager.utils.ClassicCheck')
     def test_get_server_versions_classic(self, MockClassicCheck):
-        self._invalid_consumer()
+        self._inject_mock_invalid_consumer()
         from subscription_manager import utils
         instance = MockClassicCheck.return_value
         instance.is_registered_with_classic.return_value = True
@@ -324,7 +324,7 @@ class TestGetServerVersions(fixture.SubManFixture):
     def test_get_server_versions_cp_no_status(self, MockClassicCheck, MockUep):
         instance = MockClassicCheck.return_value
         instance.is_registered_with_classic.return_value = False
-        self._valid_consumer()
+        self._inject_mock_valid_consumer()
         MockUep.supports_resource.return_value = False
         sv = get_server_versions(MockUep)
         self.assertEquals(sv['server-type'], 'Red Hat Subscription Management')
@@ -335,7 +335,7 @@ class TestGetServerVersions(fixture.SubManFixture):
     def test_get_server_versions_cp_with_status(self, MockClassicCheck, MockUep):
         instance = MockClassicCheck.return_value
         instance.is_registered_with_classic.return_value = False
-        self._valid_consumer()
+        self._inject_mock_valid_consumer()
         MockUep.supports_resource.return_value = True
         MockUep.getStatus.return_value = {'version': '101', 'release': '23423c'}
         sv = get_server_versions(MockUep)
@@ -347,7 +347,7 @@ class TestGetServerVersions(fixture.SubManFixture):
     def test_get_server_versions_cp_with_status_and_classic(self, MockClassicCheck, MockUep):
         instance = MockClassicCheck.return_value
         instance.is_registered_with_classic.return_value = True
-        self._valid_consumer()
+        self._inject_mock_valid_consumer()
         MockUep.supports_resource.return_value = True
         MockUep.getStatus.return_value = {'version': '101', 'release': '23423c'}
         sv = get_server_versions(MockUep)
@@ -361,7 +361,7 @@ class TestGetServerVersions(fixture.SubManFixture):
             raise Exception("boom")
         instance = MockClassicCheck.return_value
         instance.is_registered_with_classic.return_value = False
-        self._valid_consumer()
+        self._inject_mock_valid_consumer()
         MockUep.supports_resource.side_effect = raise_exception
         MockUep.getStatus.return_value = {'version': '101', 'release': '23423c'}
         sv = get_server_versions(MockUep)
@@ -375,7 +375,7 @@ class TestGetServerVersions(fixture.SubManFixture):
             raise Exception("boom")
         instance = MockClassicCheck.return_value
         instance.is_registered_with_classic.return_value = True
-        self._invalid_consumer()
+        self._inject_mock_invalid_consumer()
         MockUep.supports_resource.side_effect = raise_exception
         MockUep.getStatus.return_value = {'version': '101', 'release': '23423c'}
         sv = get_server_versions(MockUep)
