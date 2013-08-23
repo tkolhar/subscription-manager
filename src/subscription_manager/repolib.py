@@ -24,8 +24,11 @@ from urllib import basejoin
 from rhsm.config import initConfig
 from rhsm.connection import RemoteServerException, RestlibException
 
-from certlib import ActionReport, DataLib, ConsumerIdentity
+# FIXME: local imports
+from certlib import ActionReport, DataLib
 from certdirectory import Path, ProductDirectory, EntitlementDirectory
+
+from subscription_manager import injection as inj
 
 log = logging.getLogger('rhsm-app.' + __name__)
 
@@ -98,15 +101,11 @@ class RepoUpdateAction:
         self.report.name = "Repo updates"
         # If we are not registered, skip trying to refresh the
         # data from the server
-        try:
-            self.consumer = ConsumerIdentity.read()
-        except Exception:
-            self.consumer = None
+        consumer_identity = inj.require(inj.IDENTITY)
 
-        if self.consumer:
-            self.consumer_uuid = self.consumer.getConsumerId()
+        if consumer_identity.is_valid():
             try:
-                result = self.uep.getRelease(self.consumer_uuid)
+                result = self.uep.getRelease(consumer_identity.uuid)
                 self.release = result['releaseVer']
             # ie, a 404 from a old server that doesn't support the release API
             except RemoteServerException, e:
