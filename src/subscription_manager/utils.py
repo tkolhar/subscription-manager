@@ -27,8 +27,8 @@ from urlparse import urlparse
 from M2Crypto.SSL import SSLError
 
 from subscription_manager.branding import get_branding
-from subscription_manager.certlib import ConsumerIdentity
 from subscription_manager.hwprobe import ClassicCheck
+from subscription_manager import injection as inj
 from rhsm.connection import UEPConnection, RestlibException, GoneException
 from rhsm.config import DEFAULT_PORT, DEFAULT_PREFIX, DEFAULT_HOSTNAME, \
     DEFAULT_CDN_HOSTNAME, DEFAULT_CDN_PORT, DEFAULT_CDN_PREFIX
@@ -339,14 +339,16 @@ def get_server_versions(cp, exception_on_timeout=False):
     cp_version = _("Unknown")
     server_type = _("This system is currently not registered.")
 
+    identity = inj.require(inj.IDENTITY)
+
     # check for Classic before doing anything else
     if ClassicCheck().is_registered_with_classic():
-        if ConsumerIdentity.existsAndValid():
+        if identity.is_valid():
             server_type = get_branding().REGISTERED_TO_BOTH_SUMMARY
         else:
             server_type = get_branding().REGISTERED_TO_OTHER_SUMMARY
     else:
-        if ConsumerIdentity.existsAndValid():
+        if identity.is_valid():
             server_type = get_branding().REGISTERED_TO_SUBSCRIPTION_MANAGEMENT_SUMMARY
 
     if cp:
