@@ -24,7 +24,7 @@ from rhsm.certificate import GMT
 
 from subscription_manager.cert_sorter import EntitlementCertStackingGroupSorter
 from subscription_manager.injection import require, IDENTITY, DBUS_IFACE
-from subscription_manager.certlib import Disconnected
+from subscription_manager.entcertlib import Disconnected
 
 from subscription_manager.gui import messageWindow
 from subscription_manager.gui.storage import MappedTreeStore
@@ -127,12 +127,12 @@ class MySubscriptionsTab(widgets.SubscriptionManagerTab):
                                      self.parent_win, format_msg=False)
 
             try:
-                self.backend.certlib.update()
+                self.backend.entcertlib.update()
             except Disconnected, e:
                 pass
         else:
             # unregistered, just delete the certs directly
-            self.backend.certlib.delete([serial])
+            self.backend.entcertlib.delete([serial])
         self.backend.cs.force_cert_check()
 
     def unsubscribe_button_clicked(self, widget):
