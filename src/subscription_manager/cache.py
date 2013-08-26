@@ -30,7 +30,7 @@ from M2Crypto import SSL
 from rhsm.config import initConfig
 import rhsm.connection as connection
 from rhsm.profile import get_profile, RPMProfile
-from subscription_manager.certlib import ConsumerIdentity, DataLib
+from subscription_manager.certlib import DataLib
 import subscription_manager.injection as inj
 
 _ = gettext.gettext
@@ -39,36 +39,6 @@ log = logging.getLogger('rhsm-app.' + __name__)
 PACKAGES_RESOURCE = "packages"
 
 cfg = initConfig()
-
-
-class PackageProfileLib(DataLib):
-    """
-    Another "Lib" object, used by rhsmcertd to update the profile
-    periodically.
-    """
-    def _do_update(self):
-        profile_mgr = ProfileManager()
-        try:
-            consumer = ConsumerIdentity.read()
-        except IOError:
-            return 0
-        consumer_uuid = consumer.getConsumerId()
-        return profile_mgr.update_check(self.uep, consumer_uuid)
-
-
-class InstalledProductsLib(DataLib):
-    """
-    Another "Lib" object, used by rhsmcertd to update the installed
-    products on this system periodically.
-    """
-    def _do_update(self):
-        mgr = InstalledProductsManager()
-        try:
-            consumer = ConsumerIdentity.read()
-        except IOError:
-            return 0
-        consumer_uuid = consumer.getConsumerId()
-        return mgr.update_check(self.uep, consumer_uuid)
 
 
 class CacheManager(object):
@@ -283,6 +253,7 @@ class StatusCache(CacheManager):
         threading.Thread(target=super(StatusCache, self).write_cache, args=[False], name="WriteCache%s" % self.__class__.__name__).start()
         log.debug("Started thread to write cache: %s" % self.CACHE_FILE)
 
+    # we override a @classmethod with an instance method in the sub class?
     def delete_cache(self):
         super(StatusCache, self).delete_cache()
         self.server_status = None
@@ -303,6 +274,7 @@ class ProductStatusCache(StatusCache):
             self.server_status = consumer_data['installedProducts']
 
 
+# this is injected normally
 class ProfileManager(CacheManager):
     """
     Manages the profile of packages installed on this system.
@@ -372,19 +344,29 @@ class InstalledProductsManager(CacheManager):
     """
     CACHE_FILE = "/var/lib/rhsm/cache/installed_products.json"
 
-    def __init__(self, product_dir=None):
+    def __init__(self):
+        self._installed = None
 
-        if not product_dir:
-            product_dir = inj.require(inj.PROD_DIR)
+    def _get_installed(self):
+        if self._installed:
+            return self._installed
 
-        self.installed = {}
+        product_dir = inj.require(inj.PROD_DIR)
+
+        self._installed = {}
         for prod_cert in product_dir.list():
             prod = prod_cert.products[0]
-            self.installed[prod.id] = {'productId': prod.id,
+            self._installed[prod.id] = {'productId': prod.id,
                     'productName': prod.name,
                     'version': prod.version,
                     'arch': ','.join(prod.architectures)
                     }
+        return self._installed
+
+    def _set_installed(self, value):
+        self._installed = value
+
+    installed = property(_get_installed, _set_installed)
 
     def to_dict(self):
         return self.installed
