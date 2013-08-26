@@ -33,9 +33,8 @@ log = logging.getLogger('rhsm-app.' + __name__)
 from subscription_manager.injectioninit import init_dep_injection
 init_dep_injection()
 
-from subscription_manager.certlib import ConsumerIdentity
 from subscription_manager.branding import get_branding
-from subscription_manager.injection import require, CERT_SORTER
+from subscription_manager.injection import require, IDENTITY, CERT_SORTER
 from subscription_manager.hwprobe import ClassicCheck
 from subscription_manager.i18n_optparse import OptionParser, \
     WrappedIndentedHelpFormatter, USAGE
@@ -72,7 +71,9 @@ def pre_check_status(force_signal):
         debug("System is already registered to another entitlement system")
         return RHN_CLASSIC
 
-    if not ConsumerIdentity.existsAndValid():
+    identity = require(IDENTITY)
+
+    if not identity.is_valid():
         debug("The system is not currently registered.")
         return RHSM_REGISTRATION_REQUIRED
     return None
