@@ -34,7 +34,6 @@ import rhsm.config
 import rhsm.connection as connection
 
 from subscription_manager.branding import get_branding
-from subscription_manager.cache import InstalledProductsManager, ProfileManager
 from subscription_manager.certlib import ConsumerIdentity
 from subscription_manager.entcertlib import EntCertLib, Disconnected
 from subscription_manager.certmgr import CertManager
@@ -177,7 +176,6 @@ def handle_exception(msg, ex):
         system_exit(-1, ex)
 
 
-import pprint
 def autosubscribe(cp, consumer_uuid, service_level=None):
     """
     This is a wrapper for bind/bindByProduct. Eventually, we will exclusively
@@ -191,7 +189,6 @@ def autosubscribe(cp, consumer_uuid, service_level=None):
     try:
         plugin_manager.run("pre_auto_attach", consumer_uuid=consumer_uuid)
         ents = cp.bind(consumer_uuid)  # new style
-        pprint.pprint(ents)
         plugin_manager.run("post_auto_attach", consumer_uuid=consumer_uuid, entitlement_data=ents)
 
     except Exception, e:
@@ -999,7 +996,7 @@ class RegisterCommand(UserPassCommand):
         self._validate_options()
 
         # gather installed products info
-        self.installed_mgr = InstalledProductsManager()
+        self.installed_mgr = inj.require(inj.INSTALLED_PRODUCTS_MANAGER)
 
         # Set consumer's name to hostname by default:
         consumername = self.options.consumername
@@ -1083,7 +1080,7 @@ class RegisterCommand(UserPassCommand):
             log.info("Updating facts")
             self.facts.update_check(self.cp, consumer['uuid'], force=True)
 
-        profile_mgr = ProfileManager()
+        profile_mgr = inj.require(inj.PROFILE_MANAGER)
         # 767265: always force an upload of the packages when registering
         profile_mgr.update_check(self.cp, consumer['uuid'], True)
 
@@ -1226,12 +1223,13 @@ class RedeemCommand(CliCommand):
         self._validate_options()
 
         try:
+            # FIXME: why just facts and package profile update here?
             # update facts first, if we need to
             facts = Facts(ent_dir=self.entitlement_dir,
                           prod_dir=self.product_dir)
             facts.update_check(self.cp, consumer_uuid)
 
-            profile_mgr = ProfileManager()
+            profile_mgr = inj.require(inj.PROFILE_MANAGER)
             profile_mgr.update_check(self.cp, consumer_uuid)
 
             self.cp.activateMachine(consumer_uuid, self.options.email, self.options.locale)

@@ -30,11 +30,11 @@ import gtk.glade
 import rhsm.config as config
 
 from subscription_manager.branding import get_branding
-from subscription_manager.cache import InstalledProductsManager, ProfileManager
 from subscription_manager.certmgr import CertManager
 from subscription_manager.gui import networkConfig
 from subscription_manager.gui import widgets
-from subscription_manager.injection import IDENTITY, PLUGIN_MANAGER, require
+from subscription_manager.injection import IDENTITY, PLUGIN_MANAGER, require, \
+        INSTALLED_PRODUCTS_MANAGER, PROFILE_MANAGER
 from subscription_manager import managerlib
 from subscription_manager.utils import is_valid_server_info, MissingCaCertException, \
         parse_server_info, restart_virt_who, ServerUrlParseError
@@ -987,7 +987,7 @@ class AsyncBackend(object):
         method run in the worker thread.
         """
         try:
-            installed_mgr = InstalledProductsManager()
+            installed_mgr = require(INSTALLED_PRODUCTS_MANAGER)
 
             self.plugin_manager.run("pre_register_consumer", name=name,
                 facts=facts.get_facts())
@@ -1014,7 +1014,10 @@ class AsyncBackend(object):
                 self.backend.update()
                 cp = self.backend.cp_provider.get_consumer_auth_cp()
 
-            ProfileManager().update_check(cp, retval['uuid'])
+            # FIXME: this looks like we are updating package profile as
+            #        basic auth
+            profile_mgr = require(PROFILE_MANAGER)
+            profile_mgr.update_check(cp, retval['uuid'])
 
             # We have new credentials, restart virt-who
             restart_virt_who()

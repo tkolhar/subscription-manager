@@ -23,7 +23,6 @@ log = logging.getLogger('rhsm-app.' + __name__)
 
 from subscription_manager.isodate import parse_date
 from subscription_manager.reasons import Reasons
-from subscription_manager.cache import InstalledProductsManager
 from subscription_manager.identity import ConsumerIdentity
 from subscription_manager import file_monitor
 from rhsm.connection import RestlibException
@@ -325,7 +324,7 @@ class CertSorter(ComplianceManager):
 
         # Sync installed product info with server.
         # This will be done on register if we aren't registered
-        self.installed_mgr = InstalledProductsManager()
+        self.installed_mgr = inj.require(inj.INSTALLED_PRODUCTS_MANAGER)
         self.update_product_manager()
 
         self.product_monitor.connect('changed', self.on_prod_dir_changed)
